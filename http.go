@@ -2,43 +2,22 @@ package main
 
 import (
 	"log"
-	"net/http"
-	"sort"
 	"time"
 
-	"github.com/deepch/vdk/format/mp4f"
 	"github.com/gin-gonic/gin"
+	"github.com/webver/vdk/format/mp4f"
 	"golang.org/x/net/websocket"
 )
 
 func serveHTTP() {
 	router := gin.Default()
-	router.LoadHTMLGlob("web/templates/*")
-	router.GET("/", func(c *gin.Context) {
-		fi, all := Config.list()
-		sort.Strings(all)
-		c.HTML(http.StatusOK, "index.tmpl", gin.H{
-			"port":     Config.Server.HTTPPort,
-			"suuid":    fi,
-			"suuidMap": all,
-			"version":  time.Now().String(),
-		})
-	})
-	router.GET("/player/:suuid", func(c *gin.Context) {
-		_, all := Config.list()
-		sort.Strings(all)
-		c.HTML(http.StatusOK, "index.tmpl", gin.H{
-			"port":     Config.Server.HTTPPort,
-			"suuid":    c.Param("suuid"),
-			"suuidMap": all,
-			"version":  time.Now().String(),
-		})
+	router.GET("/status", func(c *gin.Context) {
+		c.JSON(200, Config)
 	})
 	router.GET("/ws/:suuid", func(c *gin.Context) {
 		handler := websocket.Handler(ws)
 		handler.ServeHTTP(c.Writer, c.Request)
 	})
-	router.StaticFS("/static", http.Dir("web/static"))
 	err := router.Run(Config.Server.HTTPPort)
 	if err != nil {
 		log.Fatalln(err)
@@ -51,9 +30,13 @@ func ws(ws *websocket.Conn) {
 	if Config.ext(suuid) {
 		ws.SetWriteDeadline(time.Now().Add(5 * time.Second))
 		suuid := ws.Request().FormValue("suuid")
-		cuuid, ch := Config.clAd(suuid)
-		defer Config.clDe(suuid, cuuid)
-		codecs := Config.coGe(suuid)
+		cuuid, ch := Config.clientAdd(suuid)
+		defer func() {
+			Config.clientDelete(suuid, cuuid)
+			ws.Close()
+			log.Println("Close ws")
+		}()
+		codecs := Config.codecGet(suuid)
 		if codecs == nil {
 			log.Println("No Codec Info")
 			return

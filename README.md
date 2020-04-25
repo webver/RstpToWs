@@ -1,37 +1,5 @@
-# RTSPtoWSMP4f
-
-RTSP Stream to WebBrowser MSE over WebSocket based MP4f segments
-
-full native! not use ffmpeg or gstreamer
-
-if you need RTSPtoWebRTC use https://github.com/deepch/RTSPtoWebRTC
-
-![RTSPtoWSMP4f image](doc/demo4.png)
-
-## Team
-
-Deepch - https://github.com/deepch streaming developer
-
-Dmitry - https://github.com/vdalex25 web developer
-
-## Installation
-1.
-```bash
-go get github.com/deepch/RTSPtoWSMP4f
-```
-2.
-```bash
-cd src/github.com/deepch/RTSPtoWSMP4f
-```
-3.
-```bash
-go run *.go
-```
-4.
-```bash
-open web browser http://127.0.0.1:8083
-```
-
+# RstpToWs
+https://github.com/deepch/RTSPtoWSMP4f fork
 ## Configuration
 
 ### Edit file config.json
@@ -44,16 +12,66 @@ format:
     "http_port": ":8083"
   },
   "streams": {
-    "demo1": {
+    "testCam0": {
+      "url": "rtsp://admin:admin@172.20.12.52:554/h264"
+    },
+    "testCam1": {
       "url": "rtsp://170.93.143.139/rtplive/470011e600ef003a004ee33696235daa"
     },
-    "demo2": {
-      "url": "rtsp://170.93.143.139/rtplive/470011e600ef003a004ee33696235daa"
-    },
-    "demo3": {
+    "testCam2": {
       "url": "rtsp://170.93.143.139/rtplive/470011e600ef003a004ee33696235daa"
     }
   }
+}
+```
+## Status
+GET /status
+
+```bash
+{
+   "server":{
+      "http_port":":8083"
+   },
+   "streams":{
+      "testCam0":{ //suuid камеры
+         "url":"rtsp://admin:admin@172.20.12.52:554/h264",
+         "status":true, //Есть коннект к камере или нет
+         "Codecs":[
+            {
+               "Record":"AU0AH//hADBnTQAfmmQCgC3/gLcBAQFAAAD6AAAw1DoYACFTAACFSa7y40MABCpgABCpNd5cKAABAARo7jyA",
+               "RecordInfo":{
+                  "AVCProfileIndication":77,
+                  "ProfileCompatibility":0,
+                  "AVCLevelIndication":31,
+                  "LengthSizeMinusOne":3,
+                  "SPS":[
+                     "Z00AH5pkAoAt/4C3AQEBQAAA+gAAMNQ6GAAhUwAAhUmu8uNDAAQqYAAQqTXeXCgA"
+                  ],
+                  "PPS":[
+                     "aO48gA=="
+                  ]
+               },
+               "SPSInfo":{
+                  "ProfileIdc":77,
+                  "LevelIdc":31,
+                  "MbWidth":80,
+                  "MbHeight":45,
+                  "CropLeft":0,
+                  "CropRight":0,
+                  "CropTop":0,
+                  "CropBottom":0,
+                  "Width":1280,
+                  "Height":720
+               }
+            }
+         ],
+         "Clients":{ //Кто смотрит камеру
+            "14DB9D02-4D01-D8AA-9EED-C6BA848A7BBC":{
+
+            }
+         }
+      }
+   }
 }
 ```
 

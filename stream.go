@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/deepch/vdk/format/rtsp"
+	"github.com/webver/vdk/format/rtsp"
 )
 
 func serveStreams() {
@@ -31,7 +31,8 @@ func serveStreams() {
 					time.Sleep(5 * time.Second)
 					continue
 				}
-				Config.coAd(name, codec)
+				Config.codecAdd(name, codec)
+				Config.updateStatus(name, true)
 				for {
 					pkt, err := session.ReadPacket()
 					if err != nil {
@@ -41,6 +42,7 @@ func serveStreams() {
 					Config.cast(name, pkt)
 				}
 				session.Close()
+				Config.updateStatus(name, false)
 				log.Println(name, "reconnect wait 5s")
 				time.Sleep(5 * time.Second)
 			}

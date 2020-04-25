@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"sync"
 
-	"github.com/deepch/vdk/av"
+	"github.com/webver/vdk/av"
 )
 
 var Config = loadConfig()
 
 type ConfigST struct {
+	mutex   sync.Mutex
 	Server  ServerST            `json:"server"`
 	Streams map[string]StreamST `json:"streams"`
 }
@@ -22,12 +24,12 @@ type ServerST struct {
 }
 
 type StreamST struct {
-	URL    string `json:"url"`
-	Status bool   `json:"status"`
-	Codecs []av.CodecData
-	Cl     map[string]viwer
+	URL     string `json:"url"`
+	Status  bool   `json:"status"`
+	Codecs  []av.CodecData
+	Clients map[string]viewer
 }
-type viwer struct {
+type viewer struct {
 	c chan av.Packet
 }
 
@@ -42,14 +44,14 @@ func loadConfig() *ConfigST {
 		log.Fatalln(err)
 	}
 	for i, v := range tmp.Streams {
-		v.Cl = make(map[string]viwer)
+		v.Clients = make(map[string]viewer)
 		tmp.Streams[i] = v
 	}
 	return &tmp
 }
 
 func (element *ConfigST) cast(uuid string, pck av.Packet) {
-	for _, v := range element.Streams[uuid].Cl {
+	for _, v := range element.Streams[uuid].Clients {
 		if len(v.c) < cap(v.c) {
 			v.c <- pck
 		}
@@ -61,21 +63,39 @@ func (element *ConfigST) ext(suuid string) bool {
 	return ok
 }
 
-func (element *ConfigST) coAd(suuid string, codecs []av.CodecData) {
+func (element *ConfigST) codecAdd(suuid string, codecs []av.CodecData) {
+	defer element.mutex.Unlock()
+	element.mutex.Lock()
 	t := element.Streams[suuid]
 	t.Codecs = codecs
 	element.Streams[suuid] = t
 }
 
-func (element *ConfigST) coGe(suuid string) []av.CodecData {
+func (element *ConfigST) codecGet(suuid string) []av.CodecData {
 	return element.Streams[suuid].Codecs
 }
 
-func (element *ConfigST) clAd(suuid string) (string, chan av.Packet) {
+func (element *ConfigST) updateStatus(suuid string, status bool) {
+	defer element.mutex.Unlock()
+	element.mutex.Lock()
+	t := element.Streams[suuid]
+	t.Status = status
+	element.Streams[suuid] = t
+}
+
+func (element *ConfigST) clientAdd(suuid string) (string, chan av.Packet) {
+	defer element.mutex.Unlock()
+	element.mutex.Lock()
 	cuuid := pseudoUUID()
 	ch := make(chan av.Packet, 100)
-	element.Streams[suuid].Cl[cuuid] = viwer{c: ch}
+	element.Streams[suuid].Clients[cuuid] = viewer{c: ch}
 	return cuuid, ch
+}
+
+func (element *ConfigST) clientDelete(suuid, cuuid string) {
+	defer element.mutex.Unlock()
+	element.mutex.Lock()
+	delete(element.Streams[suuid].Clients, cuuid)
 }
 
 func (element *ConfigST) list() (string, []string) {
@@ -88,10 +108,6 @@ func (element *ConfigST) list() (string, []string) {
 		res = append(res, k)
 	}
 	return fist, res
-}
-
-func (element *ConfigST) clDe(suuid, cuuid string) {
-	delete(element.Streams[suuid].Cl, cuuid)
 }
 
 func pseudoUUID() (uuid string) {
