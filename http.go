@@ -3,8 +3,10 @@ package main
 import (
 	"log"
 	"net/http"
+	"sort"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/webver/vdk/format/mp4f"
@@ -12,6 +14,15 @@ import (
 
 func serveHTTP() {
 	router := gin.Default()
+	config := cors.DefaultConfig()
+	config.AllowAllOrigins = true
+	router.Use(cors.New(config))
+
+	router.GET("/list", func(c *gin.Context) {
+		_, all := Config.list()
+		sort.Strings(all)
+		c.JSON(200, all)
+	})
 	router.GET("/status", func(c *gin.Context) {
 		c.JSON(200, Config)
 	})
