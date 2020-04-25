@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
@@ -16,7 +15,6 @@ var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 
 func main() {
-
 	flag.Parse()
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
@@ -30,9 +28,6 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
 	go serveHTTP()
 	go serveStreams()
 	sigs := make(chan os.Signal, 1)

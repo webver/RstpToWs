@@ -2,11 +2,12 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/webver/vdk/format/mp4f"
-	"golang.org/x/net/websocket"
 )
 
 func serveHTTP() {
@@ -15,27 +16,43 @@ func serveHTTP() {
 		c.JSON(200, Config)
 	})
 	router.GET("/ws/:suuid", func(c *gin.Context) {
-		handler := websocket.Handler(ws)
-		handler.ServeHTTP(c.Writer, c.Request)
+		wshandler(c.Writer, c.Request)
 	})
 	err := router.Run(Config.Server.HTTPPort)
 	if err != nil {
 		log.Fatalln(err)
 	}
 }
-func ws(ws *websocket.Conn) {
-	defer ws.Close()
-	suuid := ws.Request().FormValue("suuid")
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+func wshandler(w http.ResponseWriter, r *http.Request) {
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("Failed to set websocket upgrade: %+v\n", err)
+		return
+	}
+	defer func() {
+		cm := websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "")
+		err = ws.WriteMessage(websocket.CloseMessage, cm)
+		if err != nil {
+			log.Print(err)
+		}
+		err = ws.Close()
+		if err != nil {
+			log.Print(err)
+		}
+	}()
+	suuid := r.FormValue("suuid")
 	log.Println("Request", suuid)
 	if Config.ext(suuid) {
 		ws.SetWriteDeadline(time.Now().Add(5 * time.Second))
-		suuid := ws.Request().FormValue("suuid")
 		cuuid, ch := Config.clientAdd(suuid)
-		defer func() {
-			Config.clientDelete(suuid, cuuid)
-			ws.Close()
-			log.Println("Close ws")
-		}()
+		defer Config.clientDelete(suuid, cuuid)
 		codecs := Config.codecGet(suuid)
 		if codecs == nil {
 			log.Println("No Codec Info")
@@ -44,11 +61,11 @@ func ws(ws *websocket.Conn) {
 		muxer := mp4f.NewMuxer(nil)
 		muxer.WriteHeader(codecs)
 		meta, init := muxer.GetInit(codecs)
-		err := websocket.Message.Send(ws, append([]byte{9}, meta...))
+		err := ws.WriteMessage(websocket.BinaryMessage, append([]byte{9}, meta...))
 		if err != nil {
 			return
 		}
-		err = websocket.Message.Send(ws, init)
+		err = ws.WriteMessage(websocket.BinaryMessage, init)
 		if err != nil {
 			return
 		}
@@ -65,7 +82,7 @@ func ws(ws *websocket.Conn) {
 				ready, buf, _ := muxer.WritePacket(pck, false)
 				if ready {
 					ws.SetWriteDeadline(time.Now().Add(10 * time.Second))
-					err := websocket.Message.Send(ws, buf)
+					err := ws.WriteMessage(websocket.BinaryMessage, buf)
 					if err != nil {
 						return
 					}
