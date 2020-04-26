@@ -42,26 +42,28 @@ var upgrader = websocket.Upgrader{
 }
 
 func wshandler(w http.ResponseWriter, r *http.Request) {
-	ws, err := upgrader.Upgrade(w, r, nil)
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("Failed to set websocket upgrade: %+v\n", err)
 		return
 	}
 	defer func() {
 		cm := websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "")
-		err = ws.WriteMessage(websocket.CloseMessage, cm)
+		err = conn.WriteMessage(websocket.CloseMessage, cm)
 		if err != nil {
 			log.Print(err)
 		}
-		err = ws.Close()
+		err = conn.Close()
 		if err != nil {
 			log.Print(err)
 		}
+		log.Println("WebSocket connection terminated.")
 	}()
+
 	suuid := r.FormValue("suuid")
 	log.Println("Request", suuid)
 	if Config.ext(suuid) {
-		ws.SetWriteDeadline(time.Now().Add(5 * time.Second))
+		conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 		cuuid, ch := Config.clientAdd(suuid)
 		defer Config.clientDelete(suuid, cuuid)
 		codecs := Config.codecGet(suuid)
@@ -72,17 +74,28 @@ func wshandler(w http.ResponseWriter, r *http.Request) {
 		muxer := mp4f.NewMuxer(nil)
 		muxer.WriteHeader(codecs)
 		meta, init := muxer.GetInit(codecs)
-		err := ws.WriteMessage(websocket.BinaryMessage, append([]byte{9}, meta...))
+		err := conn.WriteMessage(websocket.BinaryMessage, append([]byte{9}, meta...))
 		if err != nil {
 			return
 		}
-		err = ws.WriteMessage(websocket.BinaryMessage, init)
+		err = conn.WriteMessage(websocket.BinaryMessage, init)
 		if err != nil {
 			return
 		}
 		var start bool
+		quitCh := make(chan bool)
+		go func(q chan bool) {
+			//Читаем что бы отрабаытваел onClose
+			_, _, err := conn.ReadMessage()
+			if err != nil {
+				q <- true
+				return
+			}
+		}(quitCh)
 		for {
 			select {
+			case <-quitCh:
+				return
 			case pck := <-ch:
 				if pck.IsKeyFrame {
 					start = true
@@ -92,8 +105,8 @@ func wshandler(w http.ResponseWriter, r *http.Request) {
 				}
 				ready, buf, _ := muxer.WritePacket(pck, false)
 				if ready {
-					ws.SetWriteDeadline(time.Now().Add(10 * time.Second))
-					err := ws.WriteMessage(websocket.BinaryMessage, buf)
+					conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+					err := conn.WriteMessage(websocket.BinaryMessage, buf)
 					if err != nil {
 						return
 					}
