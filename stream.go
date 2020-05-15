@@ -13,6 +13,7 @@ func serveStreams() {
 			for {
 				log.Println(name, "connect", url)
 				rtsp.DebugRtsp = true
+				rtsp.DebugRtp = false
 				session, err := rtsp.Dial(url)
 				if err != nil {
 					log.Println(name, err)

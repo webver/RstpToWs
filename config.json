@@ -3,11 +3,8 @@
     "http_port": ":8083"
   },
   "streams": {
-    "testCam0":{
-      "url": "rtsp://admin:admin@172.20.12.52:554/h264"
-    },
-    "testCam1": {
-      "url": "rtsp://170.93.143.139/rtplive/470011e600ef003a004ee33696235daa"
+    "testCam19":{
+      "url": "rtsp://admin:admin@192.168.0.83:554/h264"
     }
   }
 }
