@@ -14,9 +14,13 @@ import (
 var Config = loadConfig()
 
 type ConfigST struct {
-	mutex   sync.Mutex
-	Server  ServerST            `json:"server"`
-	Streams map[string]StreamST `json:"streams"`
+	mutex           sync.Mutex
+	Server          ServerST            `json:"server"`
+	Streams         map[string]StreamST `json:"streams"`
+	HlsMsPerSegment int64               `json:"hlsMsPerSegment"`
+	HlsDirectory    string              `json:"hlsDirectory"`
+	HlsWindowSize   uint                `json:"hlsWindowSize"`
+	HlsCapacity     uint                `json:"hlsWindowCapacity"`
 }
 
 type ServerST struct {
@@ -24,10 +28,11 @@ type ServerST struct {
 }
 
 type StreamST struct {
-	URL     string `json:"url"`
-	Status  bool   `json:"status"`
-	Codecs  []av.CodecData
-	Clients map[string]viewer
+	URL       string `json:"url"`
+	Status    bool   `json:"status"`
+	Codecs    []av.CodecData
+	Clients   map[string]viewer
+	HlsChanel chan av.Packet
 }
 type viewer struct {
 	c chan av.Packet
@@ -45,12 +50,14 @@ func loadConfig() *ConfigST {
 	}
 	for i, v := range tmp.Streams {
 		v.Clients = make(map[string]viewer)
+		v.HlsChanel = make(chan av.Packet, 100)
 		tmp.Streams[i] = v
 	}
 	return &tmp
 }
 
 func (element *ConfigST) cast(uuid string, pck av.Packet) {
+	element.Streams[uuid].HlsChanel <- pck
 	for _, v := range element.Streams[uuid].Clients {
 		if len(v.c) < cap(v.c) {
 			v.c <- pck
@@ -96,6 +103,12 @@ func (element *ConfigST) clientDelete(suuid, cuuid string) {
 	defer element.mutex.Unlock()
 	element.mutex.Lock()
 	delete(element.Streams[suuid].Clients, cuuid)
+}
+
+func (element *ConfigST) startHlsCast(suuid string, stopCast chan bool) {
+	defer element.mutex.Unlock()
+	element.mutex.Lock()
+	go startHls(suuid, element.Streams[suuid].HlsChanel, stopCast)
 }
 
 func (element *ConfigST) list() (string, []string) {

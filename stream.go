@@ -12,7 +12,7 @@ func serveStreams() {
 		go func(name, url string) {
 			for {
 				log.Println(name, "connect", url)
-				rtsp.DebugRtsp = true
+				rtsp.DebugRtsp = false
 				rtsp.DebugRtp = false
 				session, err := rtsp.Dial(url)
 				if err != nil {
@@ -34,6 +34,8 @@ func serveStreams() {
 				}
 				Config.codecAdd(name, codec)
 				Config.updateStatus(name, true)
+				stopHlsCast := make(chan bool)
+				Config.startHlsCast(name, stopHlsCast)
 				for {
 					pkt, err := session.ReadPacket()
 					if err != nil {

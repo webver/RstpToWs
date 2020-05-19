@@ -37,6 +37,7 @@ func serveHTTP() {
 	router.GET("/ws/:suuid", func(c *gin.Context) {
 		wshandler(c.Writer, c.Request)
 	})
+	router.StaticFS("/hls", http.Dir("./hls"))
 	router.POST("/recive", webRtcReceiver)
 	router.GET("/codec/:uuid", func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
@@ -48,7 +49,7 @@ func serveHTTP() {
 			b, err := json.Marshal(codecs)
 			if err == nil {
 				_, err = c.Writer.Write(b)
-				if err == nil {
+				if err != nil {
 					log.Println("Write Codec Info error", err)
 					return
 				}
@@ -89,7 +90,7 @@ func wshandler(w http.ResponseWriter, r *http.Request) {
 	suuid := r.FormValue("suuid")
 	log.Println("Request", suuid)
 	if Config.ext(suuid) {
-		conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+		conn.SetWriteDeadline(time.Now().Add(50 * time.Second))
 		cuuid, ch := Config.clientAdd(suuid)
 		defer Config.clientDelete(suuid, cuuid)
 		codecs := Config.codecGet(suuid)
@@ -131,7 +132,7 @@ func wshandler(w http.ResponseWriter, r *http.Request) {
 				}
 				ready, buf, _ := muxer.WritePacket(pck, false)
 				if ready {
-					conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+					conn.SetWriteDeadline(time.Now().Add(100 * time.Second))
 					err := conn.WriteMessage(websocket.BinaryMessage, buf)
 					if err != nil {
 						return
@@ -225,7 +226,10 @@ func webRtcReceiver(c *gin.Context) {
 		peerConnection, err := api.NewPeerConnection(webrtc.Configuration{
 			ICEServers: []webrtc.ICEServer{
 				{
-					URLs: []string{"stun:stun.l.google.com:19302"},
+					URLs:           []string{"turn:numb.viagenie.ca"},
+					Username:       "it@mgtniip.ru",
+					Credential:     "1qaz@WSX",
+					CredentialType: webrtc.ICECredentialTypePassword,
 				},
 			},
 		})
@@ -238,12 +242,12 @@ func webRtcReceiver(c *gin.Context) {
 			ADD KeepAlive Timer
 
 		*/
-		timer1 := time.NewTimer(time.Second * 2)
+		timer1 := time.NewTimer(time.Second * 20)
 		peerConnection.OnDataChannel(func(d *webrtc.DataChannel) {
 			// Register text message handling
 			d.OnMessage(func(msg webrtc.DataChannelMessage) {
 				//fmt.Printf("Message from DataChannel '%s': '%s'\n", d.Label(), string(msg.Data))
-				timer1.Reset(2 * time.Second)
+				timer1.Reset(20 * time.Second)
 			})
 		})
 		/*
@@ -305,6 +309,7 @@ func webRtcReceiver(c *gin.Context) {
 			log.Println("SetRemoteDescription error", err, offer.SDP)
 			return
 		}
+		log.Println("Offer sdp", offer.SDP)
 		answer, err := peerConnection.CreateAnswer(nil)
 		if err != nil {
 			log.Println("CreateAnswer error", err)
@@ -321,6 +326,12 @@ func webRtcReceiver(c *gin.Context) {
 			return
 		}
 		control := make(chan bool, 10)
+		peerConnection.OnICEGatheringStateChange(func(state webrtc.ICEGathererState) {
+			log.Println("OnICEGatheringStateChange ", state)
+		})
+		peerConnection.OnICECandidate(func(candidate *webrtc.ICECandidate) {
+			log.Println("OnICECandidate ", candidate)
+		})
 		peerConnection.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
 			log.Printf("Connection State has changed %s \n", connectionState.String())
 			if connectionState != webrtc.ICEConnectionStateConnected {
@@ -342,7 +353,7 @@ func webRtcReceiver(c *gin.Context) {
 					}()
 					var Vpre time.Duration
 					var start bool
-					timer1.Reset(5 * time.Second)
+					timer1.Reset(50 * time.Second)
 					for {
 						select {
 						case <-timer1.C:
