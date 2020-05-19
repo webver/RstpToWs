@@ -35,20 +35,21 @@ fileLoop:
 			segmentPath := filepath.Join(Config.HlsDirectory, segmentName)
 			outFile, err := os.Create(segmentPath)
 			if err != nil {
-				//handleError(streamLogger, conn, err)
+				log.Println(err)
 				return
 			}
 			tsMuxer := ts.NewMuxer(outFile)
 
 			// write header
 			if err := tsMuxer.WriteHeader(Config.codecGet(suuid)); err != nil {
-				//handleError(streamLogger, conn, err)
+				log.Println(err)
 				return
 			}
 
 			// write packets
 			var segmentLength time.Duration = 0
 			var packetLength time.Duration = 0
+			var segmentCount int = 0
 			//var start bool
 
 		segmentLoop:
@@ -71,8 +72,9 @@ fileLoop:
 					}
 					// calculate segment length
 					packetLength = pck.Time - lastPacketTime
-					segmentLength += packetLength
 					lastPacketTime = pck.Time
+					segmentLength += packetLength
+					segmentCount++
 				}
 			}
 			// write trailer
@@ -86,10 +88,10 @@ fileLoop:
 				log.Println(err)
 				return
 			}
-			log.Printf("Wrote segment %s\n", segmentName)
+			log.Printf("Wrote segment %s %f %d\n", segmentName, segmentLength.Seconds(), segmentCount)
 
-			// update playlist
-			playlist.Slide(segmentName, segmentLength.Seconds(), "")
+			// update playlist //hack --> float64(Config.HlsMsPerSegment/1000) instead of segmentLength.seconds()
+			playlist.Slide(segmentName, float64(Config.HlsMsPerSegment/1000), "")
 			playlistFile, err := os.Create(playlistFileName)
 			if err != nil {
 				log.Println(err)
