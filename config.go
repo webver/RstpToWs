@@ -15,12 +15,12 @@ var Config = loadConfig()
 
 type ConfigST struct {
 	mutex           sync.Mutex
-	Server          ServerST            `json:"server"`
-	Streams         map[string]StreamST `json:"streams"`
-	HlsMsPerSegment int64               `json:"hlsMsPerSegment"`
-	HlsDirectory    string              `json:"hlsDirectory"`
-	HlsWindowSize   uint                `json:"hlsWindowSize"`
-	HlsCapacity     uint                `json:"hlsWindowCapacity"`
+	Server          ServerST             `json:"server"`
+	Streams         map[string]*StreamST `json:"streams"`
+	HlsMsPerSegment int64                `json:"hlsMsPerSegment"`
+	HlsDirectory    string               `json:"hlsDirectory"`
+	HlsWindowSize   uint                 `json:"hlsWindowSize"`
+	HlsCapacity     uint                 `json:"hlsWindowCapacity"`
 }
 
 type ServerST struct {
@@ -33,10 +33,18 @@ type StreamST struct {
 	Codecs    []av.CodecData
 	Clients   map[string]viewer
 	HlsChanel chan av.Packet
+	//HlsLastSegmentNumber int
 }
 type viewer struct {
 	c chan av.Packet
 }
+
+const (
+	defaultHlsDir          = "./hls"
+	defaultHlsMsPerSegment = 10000
+	defaultHlsCapacity     = 10
+	defaultHlsWindowSize   = 5
+)
 
 func loadConfig() *ConfigST {
 	var tmp ConfigST
@@ -48,9 +56,30 @@ func loadConfig() *ConfigST {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	if tmp.HlsDirectory == "" {
+		tmp.HlsDirectory = defaultHlsDir
+	}
+
+	if tmp.HlsMsPerSegment == 0 {
+		tmp.HlsMsPerSegment = defaultHlsMsPerSegment
+	}
+
+	if tmp.HlsCapacity == 0 {
+		tmp.HlsCapacity = defaultHlsCapacity
+	}
+
+	if tmp.HlsWindowSize == 0 {
+		tmp.HlsWindowSize = defaultHlsWindowSize
+	}
+
+	if tmp.HlsWindowSize > tmp.HlsCapacity {
+		tmp.HlsWindowSize = tmp.HlsCapacity
+	}
+
 	for i, v := range tmp.Streams {
 		v.Clients = make(map[string]viewer)
 		v.HlsChanel = make(chan av.Packet, 100)
+		//v.HlsLastSegmentNumber = 0
 		tmp.Streams[i] = v
 	}
 	return &tmp
@@ -110,6 +139,16 @@ func (element *ConfigST) startHlsCast(suuid string, stopCast chan bool) {
 	element.mutex.Lock()
 	go startHls(suuid, element.Streams[suuid].HlsChanel, stopCast)
 }
+
+//func (element *ConfigST) getLastHlsSegmentNumber(suuid string) int {
+//	return element.Streams[suuid].HlsLastSegmentNumber
+//}
+//
+//func (element *ConfigST) updateLastHlsSegmentNumber(suuid string, lastSegmentNumber int)  {
+//	defer element.mutex.Unlock()
+//	element.mutex.Lock()
+//	element.Streams[suuid].HlsLastSegmentNumber = lastSegmentNumber
+//}
 
 func (element *ConfigST) list() (string, []string) {
 	var res []string

@@ -1,13 +1,13 @@
 {
   "server": {
-    "http_port": ":38084"
+    "http_port": ":8083"
   },
   "streams": {
-    "testCam19":{
-      "url": "rtsp://admin:admin@192.168.57.23:554/h264"
+    "testCam19": {
+      "url": "rtsp://171.25.232.5/3e3019c02ad14b84bceb2b810db29918"
     }
   },
-  "hlsMsPerSegment": 10000,
+  "hlsMsPerSegment": 5000,
   "hlsDirectory": "./hls",
   "hlsWindowSize": 5,
   "hlsWindowCapacity" : 10

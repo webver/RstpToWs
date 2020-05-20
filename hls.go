@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -12,103 +11,137 @@ import (
 	"github.com/webver/vdk/format/ts"
 )
 
+func ensureDir(dirName string) error {
+	err := os.MkdirAll(dirName, 0777)
+
+	if err == nil || os.IsExist(err) {
+		return nil
+	} else {
+		return err
+	}
+}
+
 func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
+	err := ensureDir(Config.HlsDirectory)
+	if err != nil {
+		panic("Wrong hls dir path")
+	}
+
 	// create hls playlist
 	playlistFileName := filepath.Join(Config.HlsDirectory, fmt.Sprintf("%s.m3u8", suuid))
 	playlist, err := m3u8.NewMediaPlaylist(Config.HlsWindowSize, Config.HlsCapacity)
 	if err != nil {
-		log.Println(err)
+		fmt.Println(err)
 		return
 	}
 
-	quit := make(chan bool)
-	i := 0
+	isConnected := true
+	//segmentNumber := Config.getLastHlsSegmentNumber(suuid)
+	segmentNumber := 0
 	var lastPacketTime time.Duration = 0
-fileLoop:
-	for {
-		select {
-		case <-quit:
-			break fileLoop
-		default:
-			// create new segment file
-			segmentName := fmt.Sprintf("%s%04d.ts", suuid, i)
-			segmentPath := filepath.Join(Config.HlsDirectory, segmentName)
-			outFile, err := os.Create(segmentPath)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-			tsMuxer := ts.NewMuxer(outFile)
+	var lastKeyFrame av.Packet
 
-			// write header
-			if err := tsMuxer.WriteHeader(Config.codecGet(suuid)); err != nil {
-				log.Println(err)
-				return
-			}
-
-			// write packets
-			var segmentLength time.Duration = 0
-			var packetLength time.Duration = 0
-			var segmentCount int = 0
-			//var start bool
-
-		segmentLoop:
-			for segmentLength.Milliseconds() < Config.HlsMsPerSegment {
-				select {
-				case <-stopCast:
-					quit <- true
-					break segmentLoop
-				case pck := <-ch:
-					//if pck.IsKeyFrame {
-					//	start = true
-					//}
-					//if !start {
-					//	continue
-					//}
-					// write packet to destination
-					if err = tsMuxer.WritePacket(pck); err != nil {
-						log.Println("Ts muxer write error")
-						return
-					}
-					// calculate segment length
-					packetLength = pck.Time - lastPacketTime
-					lastPacketTime = pck.Time
-					segmentLength += packetLength
-					segmentCount++
-				}
-			}
-			// write trailer
-			if err := tsMuxer.WriteTrailer(); err != nil {
-				log.Println(err)
-				return
-			}
-
-			// close segment file
-			if err := outFile.Close(); err != nil {
-				log.Println(err)
-				return
-			}
-			log.Printf("Wrote segment %s %f %d\n", segmentName, segmentLength.Seconds(), segmentCount)
-
-			// update playlist //hack --> float64(Config.HlsMsPerSegment/1000) instead of segmentLength.seconds()
-			playlist.Slide(segmentName, float64(Config.HlsMsPerSegment/1000), "")
-			playlistFile, err := os.Create(playlistFileName)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-			playlistFile.Write(playlist.Encode().Bytes())
-			playlistFile.Close()
-
-			// cleanup segments
-			if err := removeOutdatedSegments(suuid, playlist); err != nil {
-				log.Println(err)
-				return
-			}
-
-			// increase segment index
-			i++
+	for isConnected {
+		// create new segment file
+		segmentName := fmt.Sprintf("%s%04d.ts", suuid, segmentNumber)
+		segmentPath := filepath.Join(Config.HlsDirectory, segmentName)
+		outFile, err := os.Create(segmentPath)
+		if err != nil {
+			fmt.Println(err)
+			return
 		}
+		tsMuxer := ts.NewMuxer(outFile)
+
+		// write header
+		if err := tsMuxer.WriteHeader(Config.codecGet(suuid)); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		// write packets
+		var segmentLength time.Duration = 0
+		var packetLength time.Duration = 0
+		var segmentCount int = 0
+		var start = false
+
+		var isRecording = true
+		if lastKeyFrame.IsKeyFrame == true {
+			start = true
+			//write lastkeyframe
+			if err = tsMuxer.WritePacket(lastKeyFrame); err != nil {
+				fmt.Println("Ts muxer write error")
+				return
+			}
+			// calculate segment length
+			packetLength = lastKeyFrame.Time - lastPacketTime
+			lastPacketTime = lastKeyFrame.Time
+			segmentLength += packetLength
+			segmentCount++
+		}
+
+	segmentLoop:
+		// (segmentLength.Milliseconds() < Config.HlsMsPerSegment)
+		for isRecording {
+			select {
+			case <-stopCast:
+				isConnected = false
+				break segmentLoop
+			case pck := <-ch:
+				if pck.IsKeyFrame {
+					start = true
+					if segmentLength.Milliseconds() >= Config.HlsMsPerSegment {
+						isRecording = false
+						lastKeyFrame = pck
+						break segmentLoop
+					}
+				}
+				if !start {
+					continue
+				}
+				//write packet to destination
+				if err = tsMuxer.WritePacket(pck); err != nil {
+					fmt.Println("Ts muxer write error")
+					return
+				}
+				// calculate segment length
+				packetLength = pck.Time - lastPacketTime
+				lastPacketTime = pck.Time
+				segmentLength += packetLength
+				segmentCount++
+			}
+		}
+		// write trailer
+		if err := tsMuxer.WriteTrailer(); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		// close segment file
+		if err := outFile.Close(); err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Printf("Wrote segment %s %f %d\n", segmentName, segmentLength.Seconds(), segmentCount)
+
+		// update playlist //hack --> float64(Config.HlsMsPerSegment/1000) instead of segmentLength.Seconds()
+		playlist.Slide(segmentName, segmentLength.Seconds(), "")
+		playlistFile, err := os.Create(playlistFileName)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		playlistFile.Write(playlist.Encode().Bytes())
+		playlistFile.Close()
+
+		// cleanup segments
+		if err := removeOutdatedSegments(suuid, playlist); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		// increase segment index
+		segmentNumber++
+		//Config.updateLastHlsSegmentNumber(suuid, segmentNumber)
 	}
 
 	filesToRemove := make([]string, len(playlist.Segments)+1)
@@ -123,14 +156,14 @@ fileLoop:
 
 	// delete them later
 	go func(delay time.Duration, filesToRemove []string) {
-		log.Printf("Files to be deleted after %v: %v\n", delay, filesToRemove)
+		fmt.Printf("Files to be deleted after %v: %v\n", delay, filesToRemove)
 		time.Sleep(delay)
 		for _, file := range filesToRemove {
 			if file != "" {
 				if err := os.Remove(filepath.Join(Config.HlsDirectory, file)); err != nil {
-					log.Println(err)
+					fmt.Println(err)
 				} else {
-					log.Printf("Successfully removed %s\n", file)
+					fmt.Printf("Successfully removed %s\n", file)
 				}
 			}
 		}
@@ -155,9 +188,9 @@ func removeOutdatedSegments(suuid string, playlist *m3u8.MediaPlaylist) error {
 		// check if file belongs to a playlist segment
 		if _, ok := currentSegments[fileName]; !ok {
 			if err := os.Remove(segmentFile); err != nil {
-				log.Println(err)
+				fmt.Println(err)
 			} else {
-				log.Printf("Removed segment %s\n\n", segmentFile)
+				fmt.Printf("Removed segment %s\n", segmentFile)
 			}
 		}
 	}
