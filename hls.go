@@ -34,13 +34,12 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 		fmt.Println(err)
 	}
 
-	isConnected := true
 	segmentNumber := 0
 	nextSegmentDiscontinuity := false
 	var lastPacketTime time.Duration = 0
 	var lastKeyFrame av.Packet
 
-	for isConnected {
+	for {
 		// create new segment file
 		segmentName := fmt.Sprintf("%s%04d.ts", suuid, segmentNumber)
 		segmentPath := filepath.Join(Config.HlsDirectory, segmentName)
@@ -60,7 +59,6 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 		var packetLength time.Duration = 0
 		var segmentCount int = 0
 		var start = false
-		var isWritingSegment = true
 		var discontinuity = nextSegmentDiscontinuity
 		nextSegmentDiscontinuity = false
 
@@ -77,22 +75,20 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 			segmentCount++
 		}
 
-		for isWritingSegment {
+	segmentLoop:
+		for {
 			select {
 			case <-stopCast:
-				isWritingSegment = false
 				lastPacketTime = 0
 				lastKeyFrame.IsKeyFrame = false
 				nextSegmentDiscontinuity = true
-				//isConnected = false
-				continue
+				break segmentLoop
 			case pck := <-ch:
 				if pck.IsKeyFrame {
 					start = true
 					if segmentLength.Milliseconds() >= Config.HlsMsPerSegment {
-						isWritingSegment = false
 						lastKeyFrame = pck
-						continue
+						break segmentLoop
 					}
 				}
 				if !start {
@@ -141,31 +137,6 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 		// increase segment index
 		segmentNumber++
 	}
-
-	filesToRemove := make([]string, len(playlist.Segments)+1)
-
-	// collect obsolete files
-	for _, segment := range playlist.Segments {
-		if segment != nil {
-			filesToRemove = append(filesToRemove, segment.URI)
-		}
-	}
-	filesToRemove = append(filesToRemove, playlistFileName)
-
-	// delete them later
-	go func(delay time.Duration, filesToRemove []string) {
-		fmt.Printf("Files to be deleted after %v: %v\n", delay, filesToRemove)
-		time.Sleep(delay)
-		for _, file := range filesToRemove {
-			if file != "" {
-				if err := os.Remove(filepath.Join(Config.HlsDirectory, file)); err != nil {
-					fmt.Println(err)
-				} else {
-					fmt.Printf("Successfully removed %s\n", file)
-				}
-			}
-		}
-	}(time.Duration(Config.HlsMsPerSegment*int64(playlist.Count()))*time.Millisecond, filesToRemove)
 }
 
 func removeOutdatedSegments(suuid string, playlist *m3u8.MediaPlaylist) error {
