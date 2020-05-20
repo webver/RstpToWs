@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/grafov/m3u8"
+	"github.com/webver/m3u8"
 	"github.com/webver/vdk/av"
 	"github.com/webver/vdk/format/ts"
 )
@@ -32,12 +32,11 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 	playlist, err := m3u8.NewMediaPlaylist(Config.HlsWindowSize, Config.HlsCapacity)
 	if err != nil {
 		fmt.Println(err)
-		return
 	}
 
 	isConnected := true
-	//segmentNumber := Config.getLastHlsSegmentNumber(suuid)
 	segmentNumber := 0
+	nextSegmentDiscontinuity := false
 	var lastPacketTime time.Duration = 0
 	var lastKeyFrame av.Packet
 
@@ -48,14 +47,12 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 		outFile, err := os.Create(segmentPath)
 		if err != nil {
 			fmt.Println(err)
-			return
 		}
 		tsMuxer := ts.NewMuxer(outFile)
 
 		// write header
 		if err := tsMuxer.WriteHeader(Config.codecGet(suuid)); err != nil {
 			fmt.Println(err)
-			return
 		}
 
 		// write packets
@@ -63,14 +60,15 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 		var packetLength time.Duration = 0
 		var segmentCount int = 0
 		var start = false
+		var isWritingSegment = true
+		var discontinuity = nextSegmentDiscontinuity
+		nextSegmentDiscontinuity = false
 
-		var isRecording = true
+		//write lastKeyFrame if exist
 		if lastKeyFrame.IsKeyFrame == true {
 			start = true
-			//write lastkeyframe
 			if err = tsMuxer.WritePacket(lastKeyFrame); err != nil {
 				fmt.Println("Ts muxer write error")
-				return
 			}
 			// calculate segment length
 			packetLength = lastKeyFrame.Time - lastPacketTime
@@ -79,56 +77,58 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 			segmentCount++
 		}
 
-	segmentLoop:
-		// (segmentLength.Milliseconds() < Config.HlsMsPerSegment)
-		for isRecording {
+		for isWritingSegment {
 			select {
 			case <-stopCast:
-				isConnected = false
-				break segmentLoop
+				isWritingSegment = false
+				lastPacketTime = 0
+				lastKeyFrame.IsKeyFrame = false
+				nextSegmentDiscontinuity = true
+				//isConnected = false
+				continue
 			case pck := <-ch:
 				if pck.IsKeyFrame {
 					start = true
 					if segmentLength.Milliseconds() >= Config.HlsMsPerSegment {
-						isRecording = false
+						isWritingSegment = false
 						lastKeyFrame = pck
-						break segmentLoop
+						continue
 					}
 				}
 				if !start {
 					continue
 				}
-				//write packet to destination
-				if err = tsMuxer.WritePacket(pck); err != nil {
-					fmt.Println("Ts muxer write error")
-					return
+				if pck.Time > lastPacketTime {
+					//write packet to destination
+					if err = tsMuxer.WritePacket(pck); err != nil {
+						fmt.Println("Ts muxer write error")
+					}
+					// calculate segment length
+					packetLength = pck.Time - lastPacketTime
+					lastPacketTime = pck.Time
+					segmentLength += packetLength
+					segmentCount++
+				} else {
+					fmt.Println("Current packet time < previous ")
 				}
-				// calculate segment length
-				packetLength = pck.Time - lastPacketTime
-				lastPacketTime = pck.Time
-				segmentLength += packetLength
-				segmentCount++
 			}
 		}
 		// write trailer
 		if err := tsMuxer.WriteTrailer(); err != nil {
 			fmt.Println(err)
-			return
 		}
 
 		// close segment file
 		if err := outFile.Close(); err != nil {
 			fmt.Println(err)
-			return
 		}
 		fmt.Printf("Wrote segment %s %f %d\n", segmentName, segmentLength.Seconds(), segmentCount)
 
-		// update playlist //hack --> float64(Config.HlsMsPerSegment/1000) instead of segmentLength.Seconds()
-		playlist.Slide(segmentName, segmentLength.Seconds(), "")
+		// update playlist
+		playlist.Slide(segmentName, segmentLength.Seconds(), "", discontinuity)
 		playlistFile, err := os.Create(playlistFileName)
 		if err != nil {
 			fmt.Println(err)
-			return
 		}
 		playlistFile.Write(playlist.Encode().Bytes())
 		playlistFile.Close()
@@ -136,12 +136,10 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 		// cleanup segments
 		if err := removeOutdatedSegments(suuid, playlist); err != nil {
 			fmt.Println(err)
-			return
 		}
 
 		// increase segment index
 		segmentNumber++
-		//Config.updateLastHlsSegmentNumber(suuid, segmentNumber)
 	}
 
 	filesToRemove := make([]string, len(playlist.Segments)+1)
