@@ -33,7 +33,6 @@ type StreamST struct {
 	Codecs    []av.CodecData
 	Clients   map[string]viewer
 	HlsChanel chan av.Packet
-	//HlsLastSegmentNumber int
 }
 type viewer struct {
 	c chan av.Packet
@@ -79,7 +78,6 @@ func loadConfig() *ConfigST {
 	for i, v := range tmp.Streams {
 		v.Clients = make(map[string]viewer)
 		v.HlsChanel = make(chan av.Packet, 100)
-		//v.HlsLastSegmentNumber = 0
 		tmp.Streams[i] = v
 	}
 	return &tmp
@@ -139,16 +137,6 @@ func (element *ConfigST) startHlsCast(suuid string, stopCast chan bool) {
 	element.mutex.Lock()
 	go startHls(suuid, element.Streams[suuid].HlsChanel, stopCast)
 }
-
-//func (element *ConfigST) getLastHlsSegmentNumber(suuid string) int {
-//	return element.Streams[suuid].HlsLastSegmentNumber
-//}
-//
-//func (element *ConfigST) updateLastHlsSegmentNumber(suuid string, lastSegmentNumber int)  {
-//	defer element.mutex.Unlock()
-//	element.mutex.Lock()
-//	element.Streams[suuid].HlsLastSegmentNumber = lastSegmentNumber
-//}
 
 func (element *ConfigST) list() (string, []string) {
 	var res []string

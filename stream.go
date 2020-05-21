@@ -10,6 +10,7 @@ import (
 func serveStreams() {
 	for k, v := range Config.Streams {
 		go func(name, url string) {
+			stopHlsCast := make(chan bool, 1)
 			for {
 				log.Println(name, "connect", url)
 				rtsp.DebugRtsp = true
@@ -34,18 +35,17 @@ func serveStreams() {
 				}
 				Config.codecAdd(name, codec)
 				Config.updateStatus(name, true)
-				stopHlsCast := make(chan bool, 1)
 				Config.startHlsCast(name, stopHlsCast)
 				for {
 					pkt, err := session.ReadPacket()
 					if err != nil {
 						log.Println(name, err)
-						stopHlsCast <- true
 						break
 					}
 					Config.cast(name, pkt)
 				}
 				session.Close()
+				stopHlsCast <- true
 				Config.updateStatus(name, false)
 				log.Println(name, "reconnect wait 5s")
 				time.Sleep(5 * time.Second)
