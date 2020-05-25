@@ -48,7 +48,14 @@ func serveHTTP() {
 	//		}
 	//	}
 	//})
-	err := router.Run(Config.Server.HTTPPort)
+	httpServer := &http.Server{
+		Addr:         Config.Server.HTTPPort,
+		Handler:      router,
+		ReadTimeout:  time.Duration(Config.Server.HTTPTimeout) * time.Second,
+		WriteTimeout: time.Duration(Config.Server.HTTPTimeout) * time.Second,
+	}
+	err := httpServer.ListenAndServe()
+	//err := router.Run(Config.Server.HTTPPort)
 	if err != nil {
 		log.Fatalln(err)
 	}

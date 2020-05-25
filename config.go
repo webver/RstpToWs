@@ -24,7 +24,8 @@ type ConfigST struct {
 }
 
 type ServerST struct {
-	HTTPPort string `json:"http_port"`
+	HTTPPort    string `json:"http_port"`
+	HTTPTimeout int    `json:"http_timeout"`
 }
 
 type StreamST struct {
@@ -39,6 +40,7 @@ type viewer struct {
 }
 
 const (
+	defaultHttpPort        = ":8083"
 	defaultHlsDir          = "./hls"
 	defaultHlsMsPerSegment = 10000
 	defaultHlsCapacity     = 10
@@ -55,6 +57,11 @@ func loadConfig() *ConfigST {
 	if err != nil {
 		log.Fatalln(err)
 	}
+
+	if tmp.Server.HTTPPort == "" {
+		tmp.Server.HTTPPort = defaultHttpPort
+	}
+
 	if tmp.HlsDirectory == "" {
 		tmp.HlsDirectory = defaultHlsDir
 	}
