@@ -143,7 +143,8 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 			filesToRemove = append(filesToRemove, segment.URI)
 		}
 	}
-	filesToRemove = append(filesToRemove, playlistFileName)
+	_, fileName := filepath.Split(playlistFileName)
+	filesToRemove = append(filesToRemove, fileName)
 
 	// delete them later
 	go func(delay time.Duration, filesToRemove []string) {
