@@ -29,7 +29,13 @@ func serveHTTP() {
 	router.GET("/ws/:suuid", func(c *gin.Context) {
 		wshandler(c.Writer, c.Request)
 	})
-	router.StaticFS("/hls", http.Dir("./hls"))
+	router.GET("/hls/:file", func(c *gin.Context) {
+		file := c.Param("file")
+		c.Header("Cache-Control", "no-cache")
+
+		c.FileFromFS(file, http.Dir("./hls"))
+	})
+
 	//router.POST("/recive", webRtcReceiver)
 	//router.GET("/codec/:uuid", func(c *gin.Context) {
 	//	c.Header("Access-Control-Allow-Origin", "*")
