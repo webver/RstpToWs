@@ -99,7 +99,7 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 				if !start {
 					continue
 				}
-				if (pck.Idx == videoStreamIdx && pck.Time > lastPacketTime) || pck.Idx > 0 {
+				if (pck.Idx == videoStreamIdx && pck.Time > lastPacketTime) || pck.Idx != videoStreamIdx {
 					//write packet to destination
 					if err = tsMuxer.WritePacket(pck); err != nil {
 						fmt.Println("Ts muxer write error", err)
