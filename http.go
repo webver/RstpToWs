@@ -80,11 +80,6 @@ func wshandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() {
-		cm := websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "")
-		err = conn.WriteMessage(websocket.CloseMessage, cm)
-		if err != nil {
-			log.Print(err)
-		}
 		err = conn.Close()
 		if err != nil {
 			log.Print(err)

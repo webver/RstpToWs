@@ -8,5 +8,5 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/grafov/m3u8 v0.11.1
 	github.com/pion/webrtc/v2 v2.2.12
-	github.com/webver/vdk v0.0.0-20200609094954-6b575f859841
+	github.com/webver/vdk v0.0.0-20200625155914-4ecc4dc511fd
 )

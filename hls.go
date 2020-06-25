@@ -55,6 +55,14 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 			fmt.Println(err)
 		}
 
+		var videoStreamIdx int8 = 0
+		for idx, codec := range Config.codecGet(suuid) {
+			if codec.Type().IsVideo() == true {
+				videoStreamIdx = int8(idx)
+				break
+			}
+		}
+
 		// write packets
 		var segmentLength time.Duration = 0
 		var packetLength time.Duration = 0
@@ -81,7 +89,7 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 				isConnected = false
 				break segmentLoop
 			case pck := <-ch:
-				if pck.IsKeyFrame {
+				if pck.Idx == videoStreamIdx && pck.IsKeyFrame {
 					start = true
 					if segmentLength.Milliseconds() >= Config.HlsMsPerSegment {
 						lastKeyFrame = pck
@@ -91,15 +99,17 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 				if !start {
 					continue
 				}
-				if pck.Time > lastPacketTime {
+				if (pck.Idx == videoStreamIdx && pck.Time > lastPacketTime) || pck.Idx > 0 {
 					//write packet to destination
 					if err = tsMuxer.WritePacket(pck); err != nil {
-						fmt.Println("Ts muxer write error")
+						fmt.Println("Ts muxer write error", err)
 					}
-					// calculate segment length
-					packetLength = pck.Time - lastPacketTime
-					lastPacketTime = pck.Time
-					segmentLength += packetLength
+					if pck.Idx == videoStreamIdx {
+						// calculate segment length
+						packetLength = pck.Time - lastPacketTime
+						lastPacketTime = pck.Time
+						segmentLength += packetLength
+					}
 					segmentCount++
 				} else {
 					fmt.Println("Current packet time < previous ")
