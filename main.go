@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
@@ -11,8 +12,11 @@ import (
 )
 import _ "net/http/pprof"
 
-var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
-var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
+var (
+	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
+	memprofile = flag.String("memprofile", "", "write memory profile to `file`")
+	conf       = flag.String("conf", "./config.json", "Path to configuration JSON-file")
+)
 
 func main() {
 	flag.Parse()
@@ -28,8 +32,14 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	go serveHTTP()
-	go serveStreams()
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
+	cfg := NewAppConfiguration(*conf)
+
+	go serveHTTP(cfg)
+	go serveStreams(cfg)
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)

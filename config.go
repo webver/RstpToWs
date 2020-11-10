@@ -11,8 +11,6 @@ import (
 	"github.com/webver/vdk/av"
 )
 
-var Config = loadConfig()
-
 type ConfigST struct {
 	mutex           sync.Mutex
 	Server          ServerST             `json:"server"`
@@ -47,50 +45,50 @@ const (
 	defaultHlsWindowSize   = 5
 )
 
-func loadConfig() *ConfigST {
-	var tmp ConfigST
-	data, err := ioutil.ReadFile("config.json")
+func NewAppConfiguration(fname string) *ConfigST {
+	var jsonConf ConfigST
+	data, err := ioutil.ReadFile(fname)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	err = json.Unmarshal(data, &tmp)
+	err = json.Unmarshal(data, &jsonConf)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	if tmp.Server.HTTPPort == "" {
-		tmp.Server.HTTPPort = defaultHttpPort
+	if jsonConf.Server.HTTPPort == "" {
+		jsonConf.Server.HTTPPort = defaultHttpPort
 	}
 
-	if tmp.HlsDirectory == "" {
-		tmp.HlsDirectory = defaultHlsDir
+	if jsonConf.HlsDirectory == "" {
+		jsonConf.HlsDirectory = defaultHlsDir
 	}
 
-	if tmp.HlsMsPerSegment == 0 {
-		tmp.HlsMsPerSegment = defaultHlsMsPerSegment
+	if jsonConf.HlsMsPerSegment == 0 {
+		jsonConf.HlsMsPerSegment = defaultHlsMsPerSegment
 	}
 
-	if tmp.HlsCapacity == 0 {
-		tmp.HlsCapacity = defaultHlsCapacity
+	if jsonConf.HlsCapacity == 0 {
+		jsonConf.HlsCapacity = defaultHlsCapacity
 	}
 
-	if tmp.HlsWindowSize == 0 {
-		tmp.HlsWindowSize = defaultHlsWindowSize
+	if jsonConf.HlsWindowSize == 0 {
+		jsonConf.HlsWindowSize = defaultHlsWindowSize
 	}
 
-	if tmp.HlsWindowSize > tmp.HlsCapacity {
-		tmp.HlsWindowSize = tmp.HlsCapacity
+	if jsonConf.HlsWindowSize > jsonConf.HlsCapacity {
+		jsonConf.HlsWindowSize = jsonConf.HlsCapacity
 	}
 
-	for i, v := range tmp.Streams {
+	for i, v := range jsonConf.Streams {
 		v.Clients = make(map[string]viewer)
 		v.HlsChanel = make(chan av.Packet, 100)
-		tmp.Streams[i] = v
+		jsonConf.Streams[i] = v
 	}
-	return &tmp
+	return &jsonConf
 }
 
-func (element *ConfigST) cast(uuid string, pck av.Packet) {
+func (element *ConfigST) Cast(uuid string, pck av.Packet) {
 	element.Streams[uuid].HlsChanel <- pck
 	for _, v := range element.Streams[uuid].Clients {
 		if len(v.c) < cap(v.c) {
@@ -99,12 +97,12 @@ func (element *ConfigST) cast(uuid string, pck av.Packet) {
 	}
 }
 
-func (element *ConfigST) ext(suuid string) bool {
+func (element *ConfigST) Ext(suuid string) bool {
 	_, ok := element.Streams[suuid]
 	return ok
 }
 
-func (element *ConfigST) codecAdd(suuid string, codecs []av.CodecData) {
+func (element *ConfigST) CodecAdd(suuid string, codecs []av.CodecData) {
 	defer element.mutex.Unlock()
 	element.mutex.Lock()
 	t := element.Streams[suuid]
@@ -112,11 +110,11 @@ func (element *ConfigST) codecAdd(suuid string, codecs []av.CodecData) {
 	element.Streams[suuid] = t
 }
 
-func (element *ConfigST) codecGet(suuid string) []av.CodecData {
+func (element *ConfigST) CodecGet(suuid string) []av.CodecData {
 	return element.Streams[suuid].Codecs
 }
 
-func (element *ConfigST) updateStatus(suuid string, status bool) {
+func (element *ConfigST) UpdateStatus(suuid string, status bool) {
 	defer element.mutex.Unlock()
 	element.mutex.Lock()
 	t := element.Streams[suuid]
@@ -124,7 +122,7 @@ func (element *ConfigST) updateStatus(suuid string, status bool) {
 	element.Streams[suuid] = t
 }
 
-func (element *ConfigST) clientAdd(suuid string) (string, chan av.Packet) {
+func (element *ConfigST) ClientAdd(suuid string) (string, chan av.Packet) {
 	defer element.mutex.Unlock()
 	element.mutex.Lock()
 	cuuid := pseudoUUID()
@@ -133,19 +131,19 @@ func (element *ConfigST) clientAdd(suuid string) (string, chan av.Packet) {
 	return cuuid, ch
 }
 
-func (element *ConfigST) clientDelete(suuid, cuuid string) {
+func (element *ConfigST) ClientDelete(suuid, cuuid string) {
 	defer element.mutex.Unlock()
 	element.mutex.Lock()
 	delete(element.Streams[suuid].Clients, cuuid)
 }
 
-func (element *ConfigST) startHlsCast(suuid string, stopCast chan bool) {
+func (element *ConfigST) StartHlsCast(config *ConfigST, suuid string, stopCast chan bool) {
 	defer element.mutex.Unlock()
 	element.mutex.Lock()
-	go startHls(suuid, element.Streams[suuid].HlsChanel, stopCast)
+	go startHls(config, suuid, element.Streams[suuid].HlsChanel, stopCast)
 }
 
-func (element *ConfigST) list() (string, []string) {
+func (element *ConfigST) List() (string, []string) {
 	var res []string
 	var fist string
 	for k := range element.Streams {

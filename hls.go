@@ -21,15 +21,15 @@ func ensureDir(dirName string) error {
 	}
 }
 
-func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
-	err := ensureDir(Config.HlsDirectory)
+func startHls(config *ConfigST, suuid string, ch chan av.Packet, stopCast chan bool) {
+	err := ensureDir(config.HlsDirectory)
 	if err != nil {
 		panic("Wrong hls dir path")
 	}
 
 	// create hls playlist
-	playlistFileName := filepath.Join(Config.HlsDirectory, fmt.Sprintf("%s.m3u8", suuid))
-	playlist, err := m3u8.NewMediaPlaylist(Config.HlsWindowSize, Config.HlsCapacity)
+	playlistFileName := filepath.Join(config.HlsDirectory, fmt.Sprintf("%s.m3u8", suuid))
+	playlist, err := m3u8.NewMediaPlaylist(config.HlsWindowSize, config.HlsCapacity)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -43,7 +43,7 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 	for isConnected {
 		// create new segment file
 		segmentName := fmt.Sprintf("%s%04d.ts", suuid, segmentNumber)
-		segmentPath := filepath.Join(Config.HlsDirectory, segmentName)
+		segmentPath := filepath.Join(config.HlsDirectory, segmentName)
 		outFile, err := os.Create(segmentPath)
 		if err != nil {
 			fmt.Println(err)
@@ -51,12 +51,12 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 		tsMuxer := ts.NewMuxer(outFile)
 
 		// write header
-		if err := tsMuxer.WriteHeader(Config.codecGet(suuid)); err != nil {
+		if err := tsMuxer.WriteHeader(config.CodecGet(suuid)); err != nil {
 			fmt.Println(err)
 		}
 
 		var videoStreamIdx int8 = 0
-		for idx, codec := range Config.codecGet(suuid) {
+		for idx, codec := range config.CodecGet(suuid) {
 			if codec.Type().IsVideo() == true {
 				videoStreamIdx = int8(idx)
 				break
@@ -91,7 +91,7 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 			case pck := <-ch:
 				if pck.Idx == videoStreamIdx && pck.IsKeyFrame {
 					start = true
-					if segmentLength.Milliseconds() >= Config.HlsMsPerSegment {
+					if segmentLength.Milliseconds() >= config.HlsMsPerSegment {
 						lastKeyFrame = pck
 						break segmentLoop
 					}
@@ -100,6 +100,7 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 					continue
 				}
 				if (pck.Idx == videoStreamIdx && pck.Time > lastPacketTime) || pck.Idx != videoStreamIdx {
+
 					//write packet to destination
 					if err = tsMuxer.WritePacket(pck); err != nil {
 						fmt.Println("Ts muxer write error", err)
@@ -137,7 +138,7 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 		playlistFile.Close()
 
 		// cleanup segments
-		if err := removeOutdatedSegments(suuid, playlist); err != nil {
+		if err := removeOutdatedSegments(config, suuid, playlist); err != nil {
 			fmt.Println(err)
 		}
 
@@ -162,17 +163,17 @@ func startHls(suuid string, ch chan av.Packet, stopCast chan bool) {
 		time.Sleep(delay)
 		for _, file := range filesToRemove {
 			if file != "" {
-				if err := os.Remove(filepath.Join(Config.HlsDirectory, file)); err != nil {
+				if err := os.Remove(filepath.Join(config.HlsDirectory, file)); err != nil {
 					fmt.Println(err)
 				} else {
 					fmt.Printf("Successfully removed %s\n", file)
 				}
 			}
 		}
-	}(time.Duration(Config.HlsMsPerSegment*int64(playlist.Count()))*time.Millisecond, filesToRemove)
+	}(time.Duration(config.HlsMsPerSegment*int64(playlist.Count()))*time.Millisecond, filesToRemove)
 }
 
-func removeOutdatedSegments(suuid string, playlist *m3u8.MediaPlaylist) error {
+func removeOutdatedSegments(config *ConfigST, suuid string, playlist *m3u8.MediaPlaylist) error {
 	// write all playlist segment URIs into map
 	currentSegments := make(map[string]struct{}, len(playlist.Segments))
 	for _, segment := range playlist.Segments {
@@ -181,7 +182,7 @@ func removeOutdatedSegments(suuid string, playlist *m3u8.MediaPlaylist) error {
 		}
 	}
 	// find (probably) segment files in current directory
-	segmentFiles, err := filepath.Glob(filepath.Join(Config.HlsDirectory, fmt.Sprintf("%s*.ts", suuid)))
+	segmentFiles, err := filepath.Glob(filepath.Join(config.HlsDirectory, fmt.Sprintf("%s*.ts", suuid)))
 	if err != nil {
 		return err
 	}

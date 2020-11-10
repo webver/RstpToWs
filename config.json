@@ -4,7 +4,7 @@
     "http_timeout": 60
   },
   "streams": {
-    "testCam19": {
+    "testCam0": {
       "url": "rtsp://171.25.232.5/3e3019c02ad14b84bceb2b810db29918"
     }
   },

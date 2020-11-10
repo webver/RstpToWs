@@ -7,8 +7,8 @@ import (
 	"github.com/webver/vdk/format/rtsp"
 )
 
-func serveStreams() {
-	for k, v := range Config.Streams {
+func serveStreams(config *ConfigST) {
+	for k, v := range config.Streams {
 		go func(name, url string) {
 			stopHlsCast := make(chan bool, 1)
 			for {
@@ -33,20 +33,20 @@ func serveStreams() {
 					time.Sleep(5 * time.Second)
 					continue
 				}
-				Config.codecAdd(name, codec)
-				Config.updateStatus(name, true)
-				Config.startHlsCast(name, stopHlsCast)
+				config.CodecAdd(name, codec)
+				config.UpdateStatus(name, true)
+				config.StartHlsCast(config, name, stopHlsCast)
 				for {
 					pkt, err := session.ReadPacket()
 					if err != nil {
 						log.Println(name, err)
 						break
 					}
-					Config.cast(name, pkt)
+					config.Cast(name, pkt)
 				}
 				session.Close()
 				stopHlsCast <- true
-				Config.updateStatus(name, false)
+				config.UpdateStatus(name, false)
 				log.Println(name, "reconnect wait 5s")
 				time.Sleep(5 * time.Second)
 			}
