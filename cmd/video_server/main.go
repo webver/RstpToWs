@@ -48,6 +48,7 @@ func main() {
 
 	go app.StartHTTPServer()
 	go app.StartStreams()
+	go app.StartRecordApp(settings)
 
 	sigOUT := make(chan os.Signal, 1)
 	exit := make(chan bool, 1)

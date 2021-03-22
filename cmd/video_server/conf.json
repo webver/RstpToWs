@@ -1,25 +1,55 @@
 {
-    "server": {
-        "http_addr": "localhost",
-        "http_port": 8090
+  "server": {
+    "http_addr": "localhost",
+    "http_port": 8083
+  },
+  "hls_ms_per_segment": 10000,
+  "hls_directory": "./hls",
+  "hls_window_size": 5,
+  "hls_window_capacity": 10,
+  "streams": [
+    {
+      "guid": "37e8df8f-6062-489b-8fad-3b76952965d7",
+      "url": "rtsp://admin:admin@10.151.3.77:554/main",
+      "stream_types": [
+        "mse"
+      ],
+      "record_to_ram": true,
+      "ram_size": 536870912
     },
-    "hls_ms_per_segment": 10000,
-    "hls_directory": "./hls",
-    "hls_window_size": 5,
-    "hls_window_capacity" : 10,
-    "streams": [
-        {
-            "guid": "c2680f08-07cc-4dee-9231-685893e2661f",
-            "url": "rtsp://170.93.143.139/rtplive/470011e600ef003a004ee33696235daa",
-            "stream_types": ["mse", "hls"]
-        }
-    ],
-    "cors_config": {
-        "use_cors": true,
-        "allow_origins":["*"],
-        "allow_methods":["GET", "PUT", "POST", "DELETE"],
-        "allow_headers":["Origin", "Authorization", "Content-Type", "Content-Length", "Accept", "Accept-Encoding", "X-HttpRequest"],
-        "expose_headers":["Content-Length"],
-        "allow_credentials":true
+    {
+      "guid": "6c31f7bd-c842-4645-89b5-427b1a5b57ff",
+      "url": "rtsp://admin:admin@10.151.3.71:554/main",
+      "stream_types": [
+        "mse"
+      ],
+      "record_to_ram": true,
+      "ram_size": 536870912
     }
+  ],
+  "cors_config": {
+    "use_cors": true,
+    "allow_origins": [
+      "*"
+    ],
+    "allow_methods": [
+      "GET",
+      "PUT",
+      "POST",
+      "DELETE"
+    ],
+    "allow_headers": [
+      "Origin",
+      "Authorization",
+      "Content-Type",
+      "Content-Length",
+      "Accept",
+      "Accept-Encoding",
+      "X-HttpRequest"
+    ],
+    "expose_headers": [
+      "Content-Length"
+    ],
+    "allow_credentials": true
+  }
 }
