@@ -40,6 +40,8 @@ type StreamArg struct {
 	GUID        string   `json:"guid"`
 	URL         string   `json:"url"`
 	StreamTypes []string `json:"stream_types"`
+	RecordToRam bool     `json:"record_to_ram"`
+	RamSize     int      `json:"ram_size"`
 }
 
 // ServerConfiguration Configuration parameters for server

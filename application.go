@@ -1,13 +1,12 @@
 package videoserver
 
 import (
+	"github.com/gin-contrib/cors"
 	"log"
 	"sync"
 
-	"github.com/gin-contrib/cors"
-
-	"github.com/google/uuid"
 	"github.com/LdDl/vdk/av"
+	"github.com/google/uuid"
 )
 
 // Application Configuration parameters for application
@@ -19,6 +18,7 @@ type Application struct {
 	HlsWindowSize   uint         `json:"hls_window_size"`
 	HlsCapacity     uint         `json:"hls_window_capacity"`
 	CorsConfig      *cors.Config `json:"-"`
+	RecordApp       RecordApp    `json:"-"`
 }
 
 // ServerInfo Information about server

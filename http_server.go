@@ -38,6 +38,7 @@ func (app *Application) StartHTTPServer() {
 	router.GET("/status", StatusWrapper(app))
 	router.GET("/ws/:suuid", WebSocketWrapper(app, &wsUpgrader))
 	router.GET("/hls/:file", HLSWrapper(app))
+	router.GET("/screenshot/:suuid", ScreenShotWrapper(app))
 
 	router.POST("/enable_camera", EnableCamera(app))
 	router.POST("/disable_camera", DisableCamera(app))
@@ -74,6 +75,13 @@ func StatusWrapper(app *Application) func(ctx *gin.Context) {
 func WebSocketWrapper(app *Application, wsUpgrader *websocket.Upgrader) func(ctx *gin.Context) {
 	return func(ctx *gin.Context) {
 		wshandler(wsUpgrader, ctx.Writer, ctx.Request, app)
+	}
+}
+
+// WebSocketWrapper Returns WS handler
+func ScreenShotWrapper(app *Application) func(ctx *gin.Context) {
+	return func(ctx *gin.Context) {
+		screenShotWrapper(ctx, app)
 	}
 }
 
