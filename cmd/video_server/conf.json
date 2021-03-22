@@ -15,7 +15,7 @@
         "mse"
       ],
       "record_to_ram": true,
-      "ram_size": 536870912
+      "ram_size": 1073741824
     },
     {
       "guid": "6c31f7bd-c842-4645-89b5-427b1a5b57ff",

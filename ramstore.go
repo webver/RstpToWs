@@ -10,13 +10,13 @@ import (
 	"time"
 )
 
-type QueueElementValue struct{
-	PktIndex uint
+type QueueElementValue struct {
+	PktIndex   uint
 	IsKeyFrame uint
 }
 
 type MapElem struct {
-	Pkt          av.Packet	`json:"pkt"`
+	Pkt          av.Packet     `json:"pkt"`
 	QueueElement *list.Element `json:"queueElement"`
 }
 
@@ -24,20 +24,22 @@ type RamStore struct {
 	startTime time.Time //Время 1ого полученного пакета
 	pktTime   time.Duration
 
-	firstPktId uint
-	lastPktId  uint
+	rxPktNumber uint
+	firstPktId  uint
+	lastPktId   uint
 
 	m            sync.Mutex
 	storeSize    int
 	maxStoreSize int
 
-	keysQueue *list.List         //Храним последовательность ключей
+	keysQueue *list.List       //Храним последовательность ключей
 	dataMap   map[uint]MapElem //Храним сами пакеты
 }
 
 func NewRamStore(ramSize int) *RamStore {
 	var ramStore RamStore
 
+	ramStore.rxPktNumber = 0
 	ramStore.firstPktId = 0
 	ramStore.lastPktId = 0
 
@@ -54,19 +56,25 @@ func (ramStore *RamStore) AppendPkt(pkt av.Packet) error {
 	ramStore.m.Lock()
 	defer ramStore.m.Unlock()
 
-	if ramStore.lastPktId == 0 {
-		//ramStore.startTime = time.Now().Add(-pkt.Time)
+	if ramStore.rxPktNumber == 0 {
+		ramStore.startTime = time.Now().Add(-pkt.Time)
 	}
 
-	if ramStore.lastPktId == 1 {
+	if ramStore.rxPktNumber == 1 {
 		ramStore.pktTime = pkt.Time
 	}
 
-	ramStore.lastPktId++
+	ramStore.rxPktNumber++
 
-	newElem := ramStore.keysQueue.PushBack(ramStore.lastPktId)
-	ramStore.dataMap[ramStore.lastPktId] = MapElem{Pkt: pkt, QueueElement: newElem}
+	idx, err := ramStore.convertTimeToIndex(ramStore.startTime.Add(pkt.Time))
+	if err != nil {
+		return err
+	}
 
+	ramStore.lastPktId = idx
+
+	newElem := ramStore.keysQueue.PushBack(idx)
+	ramStore.dataMap[idx] = MapElem{Pkt: pkt, QueueElement: newElem}
 
 	ramStore.storeSize += len(pkt.Data)
 	if ramStore.storeSize > ramStore.maxStoreSize && ramStore.keysQueue.Len() > 0 {
@@ -79,7 +87,14 @@ func (ramStore *RamStore) AppendPkt(pkt av.Packet) error {
 				err = errors.New(fmt.Sprintf("Map не содержит удаляемый элемент"))
 			}
 			delete(ramStore.dataMap, key)
-			ramStore.firstPktId++
+
+			nextElem := elem.Next()
+			if nextId, ok := nextElem.Value.(uint); ok {
+				ramStore.firstPktId = nextId
+			} else {
+				err = errors.New(fmt.Sprintf("Очередь не содержит следуюий"))
+				ramStore.firstPktId = ramStore.lastPktId
+			}
 		} else {
 			err = errors.New(fmt.Sprintf("Очередь содержит элемент неверного типа"))
 		}
@@ -91,6 +106,7 @@ func (ramStore *RamStore) AppendPkt(pkt av.Packet) error {
 
 func (ramStore *RamStore) FindPacket(time time.Time) ([]MapElem, error) {
 
+	log.Printf("Получение скриншота за время %v", time)
 	idx, err := ramStore.convertTimeToIndex(time)
 	if err != nil {
 		return nil, err
@@ -101,8 +117,8 @@ func (ramStore *RamStore) FindPacket(time time.Time) ([]MapElem, error) {
 
 	if mapElem, ok := ramStore.dataMap[idx]; ok {
 		elem := mapElem.QueueElement.Prev()
-		pktArray := make([]MapElem,0)
-		for  {
+		pktArray := make([]MapElem, 0)
+		for {
 			pktArray = append(pktArray, ramStore.dataMap[elem.Value.(uint)])
 			if ramStore.dataMap[elem.Value.(uint)].Pkt.IsKeyFrame {
 				break
@@ -123,10 +139,7 @@ func (ramStore *RamStore) FindPacket(time time.Time) ([]MapElem, error) {
 func (ramStore *RamStore) convertTimeToIndex(time time.Time) (uint, error) {
 	var key uint
 
-	log.Printf("Получение скриншота за время %v", time)
-
-
-	if ramStore.pktTime != 0 && time.After(ramStore.startTime) {
+	if ramStore != nil && ramStore.pktTime != 0 && time.After(ramStore.startTime) {
 		key = uint((time.Sub(ramStore.startTime)).Microseconds() / ramStore.pktTime.Microseconds())
 	} else {
 		return 0, errors.New("Заданное время не попадает в диапазон")
@@ -141,6 +154,21 @@ func (ramStore *RamStore) Clear() error {
 
 	ramStore.firstPktId = 0
 	ramStore.lastPktId = 0
-	//TODO clear queue and map
+
+	for k := range ramStore.dataMap {
+		delete(ramStore.dataMap, k)
+	}
+
+	elem := ramStore.keysQueue.Front()
+	for {
+		deletedElem := elem
+		elem = elem.Next()
+		if deletedElem != nil {
+			ramStore.keysQueue.Remove(deletedElem)
+		} else {
+			break
+		}
+	}
+
 	return err
 }
