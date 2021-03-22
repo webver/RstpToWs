@@ -140,7 +140,7 @@ func (ramStore *RamStore) convertTimeToIndex(time time.Time) (uint, error) {
 	var key uint
 
 	if ramStore != nil && ramStore.pktTime != 0 && time.After(ramStore.startTime) {
-		key = uint((time.Sub(ramStore.startTime)).Microseconds() / ramStore.pktTime.Microseconds())
+		key = uint((time.Sub(ramStore.startTime)) / ramStore.pktTime)
 	} else {
 		return 0, errors.New("Заданное время не попадает в диапазон")
 	}
