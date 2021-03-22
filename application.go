@@ -33,6 +33,11 @@ type StreamsMap struct {
 	Streams map[uuid.UUID]*StreamConfiguration
 }
 
+type AvPktWithTimestamp struct {
+	time uint32
+	pkt av.Packet
+}
+
 func (sm *StreamsMap) getKeys() []uuid.UUID {
 	sm.Lock()
 	defer sm.Unlock()

@@ -55,7 +55,7 @@ func (ramStore *RamStore) AppendPkt(pkt av.Packet) error {
 	defer ramStore.m.Unlock()
 
 	if ramStore.lastPktId == 0 {
-		ramStore.startTime = time.Now()
+		//ramStore.startTime = time.Now().Add(-pkt.Time)
 	}
 
 	if ramStore.lastPktId == 1 {
