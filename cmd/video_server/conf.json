@@ -51,5 +51,8 @@
       "Content-Length"
     ],
     "allow_credentials": true
-  }
+  },
+  "mp4_directory": "mp4",
+  "mp4_file_size": 134217728,
+  "mp4_file_count": 5
 }

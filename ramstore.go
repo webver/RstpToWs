@@ -66,9 +66,17 @@ func (ramStore *RamStore) AppendPkt(pkt av.Packet) error {
 
 	ramStore.rxPktNumber++
 
-	idx, err := ramStore.convertTimeToIndex(ramStore.startTime.Add(pkt.Time))
+	idx, err := ramStore.convertTimeToIndex(ramStore.startTime.Add(pkt.Time),0)
 	if err != nil {
 		return err
+	}
+
+	for {
+		if _, ok := ramStore.dataMap[idx]; ok {
+			idx ++
+		} else {
+			break
+		}
 	}
 
 	ramStore.lastPktId = idx
@@ -107,7 +115,7 @@ func (ramStore *RamStore) AppendPkt(pkt av.Packet) error {
 func (ramStore *RamStore) FindPacket(time time.Time) ([]MapElem, error) {
 
 	log.Printf("Получение скриншота за время %v", time)
-	idx, err := ramStore.convertTimeToIndex(time)
+	idx, err := ramStore.convertTimeToIndex(time,0)
 	if err != nil {
 		return nil, err
 	}
@@ -136,11 +144,12 @@ func (ramStore *RamStore) FindPacket(time time.Time) ([]MapElem, error) {
 
 }
 
-func (ramStore *RamStore) convertTimeToIndex(time time.Time) (uint, error) {
+func (ramStore *RamStore) convertTimeToIndex(time time.Time, index uint) (uint, error) {
 	var key uint
 
+
 	if ramStore != nil && ramStore.pktTime != 0 && time.After(ramStore.startTime) {
-		key = uint((time.Sub(ramStore.startTime)) / ramStore.pktTime)
+		key = uint((time.Sub(ramStore.startTime)) / ramStore.pktTime)*1000 + (index%1000)
 	} else {
 		return 0, errors.New("Заданное время не попадает в диапазон")
 	}

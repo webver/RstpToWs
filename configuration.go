@@ -23,6 +23,9 @@ type ConfigurationArgs struct {
 	HlsWindowSize   uint                `json:"hls_window_size"`
 	HlsCapacity     uint                `json:"hls_window_capacity"`
 	CorsConfig      CorsConfiguration   `json:"cors_config"`
+	Mp4Directory    string              `json:"mp4_directory"`
+	Mp4FileSize     int                 `json:"mp4_file_size"`
+	Mp4FileCount     int                 `json:"mp4_file_count"`
 }
 
 // CorsConfiguration Configuration of CORS requests

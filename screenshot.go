@@ -18,7 +18,8 @@ type RecordApp struct {
 }
 
 type StreamSaver struct {
-	ramStore *RamStore
+	ramStore  *RamStore
+	mp4writer *Mp4Writer
 }
 
 func (app *Application) StartRecordApp(cfg *ConfigurationArgs) {
@@ -36,14 +37,39 @@ func (app *Application) StartRecordApp(cfg *ConfigurationArgs) {
 			streamSaver := StreamSaver{}
 			streamSaver.ramStore = NewRamStore(cfg.Streams[i].RamSize)
 
+			streamSaver.mp4writer, err = NewMp4Writer(cfg.Mp4Directory, validUUID, cfg.Mp4FileSize, cfg.Mp4FileCount)
+			if err != nil {
+				log.Panic("Can't crate mp4 writer", err)
+				return
+			}
+
 			app.RecordApp.store[validUUID] = streamSaver
+
 		}
 	}
 
-	for i := range app.RecordApp.store {
-		go app.StartStreamSaver(i)
-	}
+	for streamID := range app.RecordApp.store {
+		go app.StartStreamSaver(streamID)
 
+		if app.existsWithType(streamID, "mse") {
+			_, ch, err := app.clientAdd(streamID)
+			if err != nil {
+				log.Printf("Can't add client for '%s' due the error: %s\n", streamID, err.Error())
+				return
+			}
+			quitCh := make(chan bool, 1)
+			for {
+				codecData, err := app.codecGet(streamID)
+				if err != nil {
+					log.Printf("Can't get codec data for '%s' due the error: %s\n", streamID, err.Error())
+				}
+				if codecData != nil {
+					app.RecordApp.store[streamID].mp4writer.startMp4Writer(codecData, ch, quitCh)
+					break
+				}
+			}
+		}
+	}
 }
 
 func (app *Application) StartStreamSaver(streamID uuid.UUID) {
@@ -73,6 +99,133 @@ func (app *Application) StartStreamSaver(streamID uuid.UUID) {
 		}
 	}
 }
+
+//func screenShotWrapper(ctx *gin.Context, app *Application) {
+//	start := time.Now()
+//
+//	cuuid := ctx.Param("suuid")
+//	streamID, err := uuid.Parse(uuidRegExp.FindString(cuuid))
+//	if err != nil {
+//		log.Print(err)
+//		ctx.JSON(404, err.Error())
+//		return
+//	}
+//
+//	timeT := time.Now().Add(time.Second * time.Duration(-5))
+//
+//	timestampStr := ctx.Query("timestamp")
+//	timestamp, err := strconv.ParseInt(timestampStr, 10, 64)
+//	if err != nil {
+//		log.Print(err)
+//		ctx.JSON(404, err.Error())
+//		return
+//	} else {
+//
+//		timeT = time.Unix(timestamp, 0)
+//		nanoStr := ctx.Query("nano")
+//		nano, err := strconv.ParseInt(nanoStr, 10, 64)
+//		if err != nil {
+//			log.Print(err)
+//			ctx.JSON(404, err.Error())
+//			return
+//		} else {
+//			timeT = time.Unix(timestamp, nano)
+//		}
+//	}
+//
+//	ctx.Header("Cache-Control", "no-cache")
+//	pktArray, err := app.RecordApp.store[streamID].ramStore.FindPacket(timeT)
+//	if err != nil {
+//		log.Print(err)
+//		ctx.JSON(404, err.Error())
+//		return
+//	}
+//
+//	log.Printf("Время разбора H264 %v", time.Since(start))
+//
+//	codecData, err := app.codecGet(streamID)
+//	if err != nil {
+//		log.Printf("Can't add client '%s' due the error: %s\n", streamID, err.Error())
+//		ctx.JSON(404, err.Error())
+//		return
+//	}
+//	if codecData == nil || len(codecData) == 0 || codecData[0].Type() != av.H264 {
+//		log.Printf("No codec information for stream %s\n", streamID)
+//		ctx.JSON(404, err.Error())
+//		return
+//	}
+//
+//	//decoder, err := ffmpeg.NewVideoDecoder(codecData[0])
+//	//if err != nil {
+//	//	log.Print(err)
+//	//	ctx.JSON(404, err.Error())
+//	//	return
+//	//}
+//	//
+//	//err = decoder.Setup()
+//	//if err != nil {
+//	//	log.Print(err)
+//	//	ctx.JSON(404, err.Error())
+//	//	return
+//	//}
+//	//
+//	//var img *ffmpeg.VideoFrame
+//	//for i := len(pktArray) - 1; i >= 0; i-- {
+//	//	img, err = decoder.Decode(pktArray[i].Pkt.Data)
+//	//	//if i != 0 {
+//	//	//	img.Free()
+//	//	//}
+//	//	log.Printf("Индекс изображения %d, время %v", pktArray[i].QueueElement.Value, pktArray[i].Pkt.Time)
+//	//	if err != nil {
+//	//		log.Print(err)
+//	//		ctx.JSON(404, err.Error())
+//	//		return
+//	//	}
+//	//}
+//	//
+//	//if img == nil {
+//	//	err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
+//	//	log.Print(err)
+//	//	ctx.JSON(404, err.Error())
+//	//	return
+//	//} else {
+//	//	defer img.Free()
+//	//}
+//	//
+//	//converted := convertYcbCrImageToRgbaImage(img.Image)
+//	//
+//	//log.Printf("Время разбора H264 %v", time.Since(start))
+//	//
+//	//buf := new(bytes.Buffer)
+//	//jpeg.Encode(buf, converted, nil)
+//	//
+//	//log.Printf("Время разбора H264 %v", time.Since(start))
+//	//
+//	//ctx.Data(200, "image/jpeg", buf.Bytes())
+//
+//	ctx.JSON(200, pktArray)
+//	return
+//}
+
+func convertYcbCrImageToRgbaImage(original image.YCbCr) *image.RGBA {
+	bounds := original.Bounds()
+	converted := image.NewRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
+
+	i := 0
+	for row := 0; row < bounds.Max.Y; row++ {
+		for col := 0; col < bounds.Max.X; col++ {
+			clr := original.YCbCrAt(col, row)
+			r, g, b := color.YCbCrToRGB(clr.Y, clr.Cb, clr.Cr)
+			converted.Pix[i+0] = uint8(r)
+			converted.Pix[i+1] = uint8(g)
+			converted.Pix[i+2] = uint8(b)
+			converted.Pix[i+3] = uint8(0xFF)
+			i += 4
+		}
+	}
+	return converted
+}
+
 
 func screenShotWrapper(ctx *gin.Context, app *Application) {
 	start := time.Now()
@@ -108,26 +261,29 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 	}
 
 	ctx.Header("Cache-Control", "no-cache")
-	pktArray, err := app.RecordApp.store[streamID].ramStore.FindPacket(timeT)
+	segmentName, segmentStartTime, err := app.RecordApp.store[streamID].mp4writer.segmentStore.FindSegment(timeT)
 	if err != nil {
 		log.Print(err)
 		ctx.JSON(404, err.Error())
 		return
 	}
 
-	log.Printf("Время разбора H264 %v", time.Since(start))
+	timeInFile := timeT.Sub(segmentStartTime)
 
-	codecData, err := app.codecGet(streamID)
+	codecData, pktArray, err := app.RecordApp.store[streamID].mp4writer.FindInFile(segmentName, timeInFile)
 	if err != nil {
-		log.Printf("Can't add client '%s' due the error: %s\n", streamID, err.Error())
+		log.Print(err)
 		ctx.JSON(404, err.Error())
 		return
 	}
+
 	if codecData == nil || len(codecData) == 0 || codecData[0].Type() != av.H264 {
 		log.Printf("No codec information for stream %s\n", streamID)
 		ctx.JSON(404, err.Error())
 		return
 	}
+
+	log.Printf("Время разбора H264 %v", time.Since(start))
 
 	//decoder, err := ffmpeg.NewVideoDecoder(codecData[0])
 	//if err != nil {
@@ -145,11 +301,11 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 	//
 	//var img *ffmpeg.VideoFrame
 	//for i := len(pktArray) - 1; i >= 0; i-- {
-	//	img, err = decoder.Decode(pktArray[i].Pkt.Data)
+	//	img, err = decoder.Decode(pktArray[i].Data)
 	//	//if i != 0 {
 	//	//	img.Free()
 	//	//}
-	//	log.Printf("Индекс изображения %d, время %v", pktArray[i].QueueElement.Value, pktArray[i].Pkt.Time)
+	//	log.Printf("Индекс время изображения %v", pktArray[i].Time)
 	//	if err != nil {
 	//		log.Print(err)
 	//		ctx.JSON(404, err.Error())
@@ -179,23 +335,4 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 
 	ctx.JSON(200, pktArray)
 	return
-}
-
-func convertYcbCrImageToRgbaImage(original image.YCbCr) *image.RGBA {
-	bounds := original.Bounds()
-	converted := image.NewRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
-
-	i := 0
-	for row := 0; row < bounds.Max.Y; row++ {
-		for col := 0; col < bounds.Max.X; col++ {
-			clr := original.YCbCrAt(col, row)
-			r, g, b := color.YCbCrToRGB(clr.Y, clr.Cb, clr.Cr)
-			converted.Pix[i+0] = uint8(r)
-			converted.Pix[i+1] = uint8(g)
-			converted.Pix[i+2] = uint8(b)
-			converted.Pix[i+3] = uint8(0xFF)
-			i += 4
-		}
-	}
-	return converted
 }
