@@ -1,9 +1,15 @@
 package videoserver
 
 import (
+	"bytes"
+	"fmt"
 	"github.com/LdDl/vdk/av"
+	"github.com/LdDl/vdk/cgo/ffmpeg"
+	"github.com/pkg/errors"
 	"image"
 	"image/color"
+	//"image/jpeg"
+	"github.com/pixiv/go-libjpeg/jpeg"
 	"strconv"
 
 	//"github.com/LdDl/vdk/cgo/ffmpeg"
@@ -171,6 +177,8 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 	var pktArray []av.Packet
 	var codecData []av.CodecData
 
+	measureStart := time.Now()
+
 	if timeT.After(app.RecordApp.store[streamID].ramStore.firstPktTime) && timeT.Before(app.RecordApp.store[streamID].ramStore.lastPktTime) {
 		pktArray, err = app.RecordApp.store[streamID].ramStore.FindPacket(timeT)
 		if err != nil {
@@ -179,7 +187,7 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 			return
 		}
 
-		log.Printf("Время разбора H264 %v", time.Since(start))
+		log.Printf("Время разбора H264 %v", time.Since(measureStart))
 		log.Printf("Пакеты найдены в памяти")
 
 		codecData, err = app.codecGet(streamID)
@@ -219,56 +227,65 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 		return
 	}
 
-	log.Printf("Время разбора H264 %v", time.Since(start))
+	log.Printf("Время получения пакетов %v", time.Since(measureStart))
 
-	//decoder, err := ffmpeg.NewVideoDecoder(codecData[0])
-	//if err != nil {
-	//	log.Print(err)
-	//	ctx.JSON(404, err.Error())
-	//	return
-	//}
-	//
-	//err = decoder.Setup()
-	//if err != nil {
-	//	log.Print(err)
-	//	ctx.JSON(404, err.Error())
-	//	return
-	//}
-	//
-	//var img *ffmpeg.VideoFrame
-	//for i := len(pktArray) - 1; i >= 0; i-- {
-	//	img, err = decoder.Decode(pktArray[i].Data)
-	//	//if i != 0 {
-	//	//	img.Free()
-	//	//}
-	//	log.Printf("Индекс время изображения %v", pktArray[i].Time)
-	//	if err != nil {
-	//		log.Print(err)
-	//		ctx.JSON(404, err.Error())
-	//		return
-	//	}
-	//}
-	//
-	//if img == nil {
-	//	err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
-	//	log.Print(err)
-	//	ctx.JSON(404, err.Error())
-	//	return
-	//} else {
-	//	defer img.Free()
-	//}
-	//
-	//converted := convertYcbCrImageToRgbaImage(img.Image)
-	//
-	//log.Printf("Время разбора H264 %v", time.Since(start))
-	//
-	//buf := new(bytes.Buffer)
-	//jpeg.Encode(buf, converted, nil)
-	//
-	//log.Printf("Время разбора H264 %v", time.Since(start))
-	//
-	//ctx.Data(200, "image/jpeg", buf.Bytes())
+	decoder, err := ffmpeg.NewVideoDecoder(codecData[0])
+	if err != nil {
+		log.Print(err)
+		ctx.JSON(404, err.Error())
+		return
+	}
 
-	ctx.JSON(200, pktArray)
+	err = decoder.Setup()
+	if err != nil {
+		log.Print(err)
+		ctx.JSON(404, err.Error())
+		return
+	}
+
+	measureStart = time.Now()
+
+	var img *ffmpeg.VideoFrame
+	for i := range pktArray {
+		err = decoder.DecoderAppendPkt(pktArray[i].Data)
+		if err != nil {
+			log.Print(err)
+			ctx.JSON(404, err.Error())
+			return
+		}
+	}
+
+	log.Printf("Время декодирования %v", time.Since(measureStart))
+	measureStart = time.Now()
+
+	img, err = decoder.DecoderReceiveFrame()
+	if err != nil {
+		err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
+		log.Print(err)
+		ctx.JSON(404, err.Error())
+		return
+	}
+
+	log.Printf("Время получения изображения %v", time.Since(measureStart))
+	measureStart = time.Now()
+
+	if img == nil {
+		err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
+		log.Print(err)
+		ctx.JSON(404, err.Error())
+		return
+	} else {
+		defer img.Free()
+	}
+
+	buf := new(bytes.Buffer)
+	jpeg.Encode(buf, &img.Image, &jpeg.EncoderOptions{Quality: 90})
+
+	log.Printf("Время преобразования в JPEG %v", time.Since(measureStart))
+	log.Printf("Время получения изображения суммарно %v", time.Since(start))
+
+	ctx.Data(200, "image/jpeg", buf.Bytes())
+
+	//ctx.JSON(200, pktArray)
 	return
 }
