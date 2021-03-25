@@ -15,17 +15,16 @@ type SegmentStore struct {
 	fistTime time.Time
 	lastTime time.Time
 
-	segmentCount int
-	maxSegmentCount int
+	segmentCount     int
+	maxSegmentCount  int
 	segmentKeysQueue *list.List
-	segmentDataMap map[string]SegmentData
+	segmentDataMap   map[string]SegmentData
 }
 
 type SegmentData struct {
 	startTime time.Time
-	endTime time.Time
+	endTime   time.Time
 }
-
 
 func NewSegmentStore(maxSegmentCount int) *SegmentStore {
 	var store SegmentStore
@@ -51,11 +50,11 @@ func (store *SegmentStore) AppendSegment(filename string, data SegmentData) erro
 	store.segmentKeysQueue.PushBack(filename)
 	store.segmentDataMap[filename] = data
 
-	store.segmentCount ++
+	store.segmentCount++
 	if store.segmentCount > store.maxSegmentCount && store.segmentKeysQueue.Len() > 1 {
 		elem := store.segmentKeysQueue.Front()
 		if key, ok := elem.Value.(string); ok {
-			store.segmentCount --
+			store.segmentCount--
 			delete(store.segmentDataMap, key)
 
 			nextElem := elem.Next()
@@ -81,6 +80,7 @@ func (store *SegmentStore) FindSegment(tm time.Time) (string, time.Time, error) 
 	store.m.Lock()
 	defer store.m.Unlock()
 
+	tm = tm.UTC()
 	if tm.Before(store.lastTime) && tm.After(store.fistTime) {
 		elem := store.segmentKeysQueue.Front()
 		if elem == nil {

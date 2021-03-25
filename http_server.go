@@ -124,7 +124,7 @@ func EnableCamera(app *Application) func(ctx *gin.Context) {
 			app.Streams.Lock()
 			app.Streams.Streams[postData.GUID] = &StreamConfiguration{
 				URL:                  postData.URL,
-				Clients:              make(map[uuid.UUID]viewer),
+				Clients:              make(map[uuid.UUID]Viewer),
 				hlsChanel:            make(chan av.Packet, 100),
 				SupportedStreamTypes: postData.StreamTypes,
 			}

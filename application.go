@@ -35,7 +35,7 @@ type StreamsMap struct {
 
 type AvPktWithTimestamp struct {
 	time uint32
-	pkt av.Packet
+	pkt  av.Packet
 }
 
 func (sm *StreamsMap) getKeys() []uuid.UUID {
@@ -54,12 +54,13 @@ type StreamConfiguration struct {
 	Status               bool     `json:"status"`
 	SupportedStreamTypes []string `json:"supported_stream_types"`
 	Codecs               []av.CodecData
-	Clients              map[uuid.UUID]viewer
+	Clients              map[uuid.UUID]Viewer
 	hlsChanel            chan av.Packet
 }
 
-type viewer struct {
-	c chan av.Packet
+type Viewer struct {
+	c      chan av.Packet
+	status chan bool
 }
 
 // NewApplication Prepare configuration for application
@@ -86,7 +87,7 @@ func NewApplication(cfg *ConfigurationArgs) (*Application, error) {
 		}
 		tmp.Streams.Streams[validUUID] = &StreamConfiguration{
 			URL:                  cfg.Streams[i].URL,
-			Clients:              make(map[uuid.UUID]viewer),
+			Clients:              make(map[uuid.UUID]Viewer),
 			hlsChanel:            make(chan av.Packet, 100),
 			SupportedStreamTypes: cfg.Streams[i].StreamTypes,
 		}
@@ -181,10 +182,16 @@ func (app *Application) updateStatus(streamID uuid.UUID, status bool) error {
 	}
 	t.Status = status
 	app.Streams.Streams[streamID] = t
+
+	for _, v := range t.Clients {
+		if len(v.status) < cap(v.status) {
+			v.status <- status
+		}
+	}
 	return nil
 }
 
-func (app *Application) clientAdd(streamID uuid.UUID) (uuid.UUID, chan av.Packet, error) {
+func (app *Application) clientAdd(streamID uuid.UUID) (uuid.UUID, *Viewer, error) {
 	app.Streams.Lock()
 	defer app.Streams.Unlock()
 	clientID, err := uuid.NewUUID()
@@ -192,12 +199,14 @@ func (app *Application) clientAdd(streamID uuid.UUID) (uuid.UUID, chan av.Packet
 		return uuid.UUID{}, nil, err
 	}
 	ch := make(chan av.Packet, 100)
+	statusCh := make(chan bool, 1)
 	curStream, ok := app.Streams.Streams[streamID]
 	if !ok {
 		return uuid.UUID{}, nil, ErrStreamNotFound
 	}
-	curStream.Clients[clientID] = viewer{c: ch}
-	return clientID, ch, nil
+	viewer := Viewer{c: ch, status: statusCh}
+	curStream.Clients[clientID] = viewer
+	return clientID, &viewer, nil
 }
 
 func (app *Application) clientDelete(streamID, clientID uuid.UUID) {

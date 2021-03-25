@@ -14,8 +14,8 @@
       "stream_types": [
         "mse"
       ],
-      "record_to_ram": true,
-      "ram_size": 1073741824
+      "record_stream": true,
+      "ram_size": 33554432
     },
     {
       "guid": "6c31f7bd-c842-4645-89b5-427b1a5b57ff",
@@ -23,8 +23,8 @@
       "stream_types": [
         "mse"
       ],
-      "record_to_ram": true,
-      "ram_size": 536870912
+      "record_stream": true,
+      "ram_size": 33554432
     }
   ],
   "cors_config": {
@@ -53,6 +53,6 @@
     "allow_credentials": true
   },
   "mp4_directory": "mp4",
-  "mp4_file_size": 134217728,
+  "mp4_file_size": 33554432,
   "mp4_file_count": 5
 }

@@ -9,30 +9,28 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
-type Mp4Writer struct{
-	streamID uuid.UUID
-	maxFileSize int //максимальный размер файла
-	codecData av.CodecData
-
-	startTime time.Time //Время 1ого полученного пакета
-	lastPacketTime time.Duration //Время последнего записанного пакета
-
-	rxPktNumber uint //количество пакетов в файле
-	fileSize int	//размер файла
-
-	mp4Muxer *mp4.Muxer
-
-	folderPath string
-	isConnected bool
-
-	lastKeyFrame av.Packet
+type Mp4Writer struct {
+	streamID    uuid.UUID
+	folderPath  string //Путь к папке
+	maxFileSize int    //максимальный размер файла
+	codecData   av.CodecData
 
 	segmentStore *SegmentStore
-}
 
+	//Текущее состояние
+	startTime       time.Time     //Время 1ого полученного пакета после подключения
+	firstPacketTime time.Time     //Время 1ого полученного пакета для сегмента
+	lastPacketTime  time.Duration //Время последнего записанного пакета  для сегмента
+
+	//Нужно только внутри цикла
+	fileSize     int //размер файла
+	isConnected  bool
+	lastKeyFrame av.Packet
+}
 
 func NewMp4Writer(mp4Directory string, streamID uuid.UUID, maxFileSize int, maxSegmentCount int) (*Mp4Writer, error) {
 	mp4Writer := Mp4Writer{}
@@ -47,11 +45,13 @@ func NewMp4Writer(mp4Directory string, streamID uuid.UUID, maxFileSize int, maxS
 	}
 
 	mp4Writer.segmentStore = NewSegmentStore(maxSegmentCount)
+	mp4Writer.initSegmentStore()
 
 	return &mp4Writer, nil
 }
 
-func  (mp4Writer *Mp4Writer) FindInFile(segmentPath string, timeInFile time.Duration) ([]av.CodecData, []av.Packet, error) {
+func (mp4Writer *Mp4Writer) FindInFile(fileName string, timeInFile time.Duration) ([]av.CodecData, []av.Packet, error) {
+	segmentPath := filepath.Join(mp4Writer.folderPath, fileName)
 	outFile, err := os.Open(segmentPath)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, fmt.Sprintf("Can't open mp4-segment for stream %s", mp4Writer.streamID))
@@ -70,16 +70,17 @@ func  (mp4Writer *Mp4Writer) FindInFile(segmentPath string, timeInFile time.Dura
 		return nil, nil, errors.Wrap(err, fmt.Sprintf("Can't seek mp4-segment for stream %s", mp4Writer.streamID))
 	}
 
-
 	pktArray := make([]av.Packet, 0)
 	for {
 		pkt, err := mp4Demuxer.ReadPacket()
 		if err != nil {
 			return nil, nil, errors.Wrap(err, fmt.Sprintf("Cant read pkt from mp4-segment for stream %s", mp4Writer.streamID))
 		}
-		pktArray = append(pktArray, pkt)
-		if mp4Demuxer.CurrentTime() >= timeInFile {
+
+		if mp4Demuxer.CurrentTime() > timeInFile {
 			return codecData, pktArray, err
+		} else {
+			pktArray = append(pktArray, pkt)
 		}
 	}
 }
@@ -90,9 +91,10 @@ func (mp4Writer *Mp4Writer) startMp4Writer(codecData []av.CodecData, ch chan av.
 
 	for mp4Writer.isConnected {
 		// Create new segment file
-		segmentName := fmt.Sprintf("%d.mp4", time.Now().Unix())
-		segmentPath := filepath.Join(mp4Writer.folderPath, segmentName)
-		outFile, err := os.Create(segmentPath)
+		segmentTimestamp := time.Now().Unix()
+		segmentTmpName := fmt.Sprintf("%d.tmp", segmentTimestamp)
+		segmentTempPath := filepath.Join(mp4Writer.folderPath, segmentTmpName)
+		outFile, err := os.Create(segmentTempPath)
 		if err != nil {
 			return errors.Wrap(err, fmt.Sprintf("Can't create mp4-segment for stream %s", mp4Writer.streamID))
 		}
@@ -118,7 +120,9 @@ func (mp4Writer *Mp4Writer) startMp4Writer(codecData []av.CodecData, ch chan av.
 		// Write lastKeyFrame if exist
 		if mp4Writer.lastKeyFrame.IsKeyFrame {
 			isStarted = true
-			mp4Writer.startTime = time.Now().Add(-mp4Writer.lastKeyFrame.Time)
+			now := time.Now().UTC()
+			mp4Writer.startTime = now.Add(-mp4Writer.lastKeyFrame.Time)
+			mp4Writer.firstPacketTime = now
 			if err = mp4Muxer.WritePacket(mp4Writer.lastKeyFrame); err != nil {
 				return errors.Wrap(err, fmt.Sprintf("Can't write packet for mp4 muxer for stream %s (1)", mp4Writer.streamID))
 			}
@@ -129,13 +133,17 @@ func (mp4Writer *Mp4Writer) startMp4Writer(codecData []av.CodecData, ch chan av.
 	segmentLoop:
 		for {
 			select {
-			case <-stopCast:
-				mp4Writer.isConnected = false
-				break segmentLoop
+			case status := <-stopCast:
+				if status == false {
+					mp4Writer.isConnected = false
+					break segmentLoop
+				}
 			case pck := <-ch:
 				if pck.Idx == videoStreamIdx && pck.IsKeyFrame {
 					if isStarted == false {
-						mp4Writer.startTime = time.Now().Add(-pck.Time)
+						now := time.Now().UTC()
+						mp4Writer.startTime = now.Add(-pck.Time)
+						mp4Writer.firstPacketTime = now
 					}
 					isStarted = true
 
@@ -161,21 +169,26 @@ func (mp4Writer *Mp4Writer) startMp4Writer(codecData []av.CodecData, ch chan av.
 			}
 		}
 
-		if err := mp4Muxer.WriteTrailer(); err != nil {
+		if err = mp4Muxer.WriteTrailerWithStartTime(mp4Writer.firstPacketTime); err != nil {
 			log.Printf("Can't write trailing data for TS muxer for %s: %s\n", mp4Writer.streamID, err.Error())
 		}
 
-		if err := outFile.Close(); err != nil {
+		if err = outFile.Close(); err != nil {
 			log.Printf("Can't close file %s: %s\n", outFile.Name(), err.Error())
 		}
 
+		segmentName := fmt.Sprintf("%d.mp4", segmentTimestamp)
+		segmentPath := filepath.Join(mp4Writer.folderPath, segmentName)
+
+		os.Rename(segmentTempPath, segmentPath)
+
 		//Update segment data
-		err = mp4Writer.segmentStore.AppendSegment(segmentPath, SegmentData{
-			startTime : mp4Writer.startTime,
-			endTime: mp4Writer.startTime.Add(mp4Writer.lastPacketTime),
+		err = mp4Writer.segmentStore.AppendSegment(segmentName, SegmentData{
+			startTime: mp4Writer.firstPacketTime.UTC(),
+			endTime:   mp4Writer.startTime.UTC().Add(mp4Writer.lastPacketTime),
 		})
 		if err != nil {
-			log.Printf("Can't append segment to store %s: %s\n", segmentPath, err.Error())
+			log.Printf("Can't append segment to store %s: %s\n", segmentName, err.Error())
 		}
 
 		// Cleanup segments
@@ -189,7 +202,7 @@ func (mp4Writer *Mp4Writer) startMp4Writer(codecData []av.CodecData, ch chan av.
 
 func (mp4Writer *Mp4Writer) removeOutdatedSegments() error {
 	// Find possible segment files in current directory
-	segmentFiles, err := filepath.Glob(filepath.Join(mp4Writer.folderPath, fmt.Sprintf("%s*.ts", mp4Writer.streamID)))
+	segmentFiles, err := filepath.Glob(filepath.Join(mp4Writer.folderPath, "*.mp4"))
 	if err != nil {
 		log.Printf("Can't find glob for '%s': %s\n", mp4Writer.streamID, err.Error())
 		return err
@@ -208,28 +221,48 @@ func (mp4Writer *Mp4Writer) removeOutdatedSegments() error {
 
 func (mp4Writer *Mp4Writer) initSegmentStore() error {
 	// Find possible segment files in current directory
-	segmentFiles, err := filepath.Glob(filepath.Join(mp4Writer.folderPath, fmt.Sprintf("%s*.ts", mp4Writer.streamID)))
+	segmentFiles, err := filepath.Glob(filepath.Join(mp4Writer.folderPath, "*.mp4"))
 	if err != nil {
 		log.Printf("Can't find glob for '%s': %s\n", mp4Writer.streamID, err.Error())
 		return err
 	}
+
+	segmentFileTimestamps := make([]int, 0, len(segmentFiles))
 	for _, segmentFile := range segmentFiles {
 		_, fileName := filepath.Split(segmentFile)
+		var timestamp int
+		n, err := fmt.Sscanf(fileName, "%d.mp4", &timestamp)
+		if err != nil || n != 1 {
+			log.Print("Не правильный формат навания файла")
+		} else {
+			segmentFileTimestamps = append(segmentFileTimestamps, timestamp)
+		}
+	}
 
-		outFile, err := os.Open(segmentFile)
+	sort.Slice(segmentFileTimestamps, func(i, j int) bool {
+		return segmentFileTimestamps[i] < segmentFileTimestamps[j]
+	})
+
+	for _, segmentFileTimestamp := range segmentFileTimestamps {
+		fileName := fmt.Sprintf("%d.mp4", segmentFileTimestamp)
+		segmentPath := filepath.Join(mp4Writer.folderPath, fileName)
+
+		outFile, err := os.Open(segmentPath)
 		if err != nil {
 			return errors.Wrap(err, fmt.Sprintf("Can't open mp4-segment for stream %s", mp4Writer.streamID))
 		}
 
 		mp4Demuxer := mp4.NewDemuxer(outFile)
 
-		mp4Demuxer.Streams()
-
-		if _, ok := mp4Writer.segmentStore.segmentDataMap[fileName]; !ok {
-			if err := os.Remove(segmentFile); err != nil {
-				log.Printf("Can't call removeOutdatedSegments() for segment %s: %s\n", segmentFile, err.Error())
-			}
+		movieInfo, err := mp4Demuxer.GetMovieHeader()
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("Can't get movie info from mp4-segment for stream %s", mp4Writer.streamID))
 		}
+
+		mp4Writer.segmentStore.AppendSegment(fileName, SegmentData{
+			startTime: movieInfo.CreateTime,
+			endTime:   movieInfo.CreateTime.Add(time.Duration(movieInfo.Duration) * time.Second / time.Duration(movieInfo.TimeScale)),
+		})
 
 		outFile.Close()
 

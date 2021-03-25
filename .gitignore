@@ -9,3 +9,4 @@ example_client/mse_example/package-lock.json
 example_client/hls_example/node_modules
 example_client/hls_example/.nuxt
 example_client/hls_example/package-lock.json
+/cmd/video_server/mp4/*

@@ -25,7 +25,7 @@ type ConfigurationArgs struct {
 	CorsConfig      CorsConfiguration   `json:"cors_config"`
 	Mp4Directory    string              `json:"mp4_directory"`
 	Mp4FileSize     int                 `json:"mp4_file_size"`
-	Mp4FileCount     int                 `json:"mp4_file_count"`
+	Mp4FileCount    int                 `json:"mp4_file_count"`
 }
 
 // CorsConfiguration Configuration of CORS requests
@@ -40,11 +40,11 @@ type CorsConfiguration struct {
 
 // StreamArg Infromation about stream's source
 type StreamArg struct {
-	GUID        string   `json:"guid"`
-	URL         string   `json:"url"`
-	StreamTypes []string `json:"stream_types"`
-	RecordToRam bool     `json:"record_to_ram"`
-	RamSize     int      `json:"ram_size"`
+	GUID         string   `json:"guid"`
+	URL          string   `json:"url"`
+	StreamTypes  []string `json:"stream_types"`
+	RecordStream bool     `json:"record_stream"`
+	RamSize      int      `json:"ram_size"`
 }
 
 // ServerConfiguration Configuration parameters for server
