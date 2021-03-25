@@ -1,0 +1,14 @@
+[Unit]
+Description=video stream recorder
+After=network.target
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+User=tulauser5
+WorkingDirectory=/home/tulauser5/video-server/cmd/video_server/
+ExecStart=/home/tulauser5/video-server/cmd/video_server/video_server --conf /home/tulauser5/video-server/cmd/video_server/conf.json
+
+[Install]
+WantedBy=multi-user.target

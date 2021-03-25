@@ -12,7 +12,6 @@ import (
 	"github.com/pixiv/go-libjpeg/jpeg"
 	"strconv"
 
-	//"github.com/LdDl/vdk/cgo/ffmpeg"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"log"
@@ -236,13 +235,6 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 		return
 	}
 
-	err = decoder.Setup()
-	if err != nil {
-		log.Print(err)
-		ctx.JSON(404, err.Error())
-		return
-	}
-
 	measureStart = time.Now()
 
 	var img *ffmpeg.VideoFrame
@@ -265,6 +257,7 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 		ctx.JSON(404, err.Error())
 		return
 	}
+	decoder.Free()
 
 	log.Printf("Время получения изображения %v", time.Since(measureStart))
 	measureStart = time.Now()
@@ -274,12 +267,18 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 		log.Print(err)
 		ctx.JSON(404, err.Error())
 		return
-	} else {
-		defer img.Free()
 	}
 
 	buf := new(bytes.Buffer)
-	jpeg.Encode(buf, &img.Image, &jpeg.EncoderOptions{Quality: 90})
+	err = jpeg.Encode(buf, &img.Image, &jpeg.EncoderOptions{Quality: 90})
+	if err != nil {
+		err = errors.New(fmt.Sprintf("Ошибка преобразования в jpeg для времени %v", timeT))
+		log.Print(err)
+		ctx.JSON(404, err.Error())
+		return
+	}
+
+	img.Free()
 
 	log.Printf("Время преобразования в JPEG %v", time.Since(measureStart))
 	log.Printf("Время получения изображения суммарно %v", time.Since(start))

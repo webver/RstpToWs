@@ -91,6 +91,11 @@ func (mp4Writer *Mp4Writer) startMp4Writer(codecData []av.CodecData, ch chan av.
 
 	for mp4Writer.isConnected {
 		// Create new segment file
+		err := mp4Writer.removeTmpFiles()
+		if err != nil {
+			log.Printf("Can't remove tmp files for stream %s: %s\n", mp4Writer.streamID, err.Error())
+		}
+
 		segmentTimestamp := time.Now().Unix()
 		segmentTmpName := fmt.Sprintf("%d.tmp", segmentTimestamp)
 		segmentTempPath := filepath.Join(mp4Writer.folderPath, segmentTmpName)
@@ -180,7 +185,10 @@ func (mp4Writer *Mp4Writer) startMp4Writer(codecData []av.CodecData, ch chan av.
 		segmentName := fmt.Sprintf("%d.mp4", segmentTimestamp)
 		segmentPath := filepath.Join(mp4Writer.folderPath, segmentName)
 
-		os.Rename(segmentTempPath, segmentPath)
+		err = os.Rename(segmentTempPath, segmentPath)
+		if err != nil {
+			log.Printf("Can't rename segment to store %s: %s\n", segmentTmpName, err.Error())
+		}
 
 		//Update segment data
 		err = mp4Writer.segmentStore.AppendSegment(segmentName, SegmentData{
@@ -214,6 +222,21 @@ func (mp4Writer *Mp4Writer) removeOutdatedSegments() error {
 			if err := os.Remove(segmentFile); err != nil {
 				log.Printf("Can't call removeOutdatedSegments() for segment %s: %s\n", segmentFile, err.Error())
 			}
+		}
+	}
+	return nil
+}
+
+func (mp4Writer *Mp4Writer) removeTmpFiles() error {
+	// Find possible segment files in current directory
+	tmpFiles, err := filepath.Glob(filepath.Join(mp4Writer.folderPath, "*.tmp"))
+	if err != nil {
+		log.Printf("Can't find tmp files for '%s': %s\n", mp4Writer.streamID, err.Error())
+		return err
+	}
+	for _, tmpFile := range tmpFiles {
+		if err := os.Remove(tmpFile); err != nil {
+			log.Printf("Can't call removeTmpFiles() for file %s: %s\n", tmpFile, err.Error())
 		}
 	}
 	return nil
