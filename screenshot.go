@@ -1,15 +1,10 @@
 package videoserver
 
 import (
-	"bytes"
-	"fmt"
-	"github.com/LdDl/vdk/av"
-	"github.com/LdDl/vdk/cgo/ffmpeg"
-	"github.com/pkg/errors"
+	"github.com/deepch/vdk/av"
 	"image"
 	"image/color"
-	//"image/jpeg"
-	"github.com/pixiv/go-libjpeg/jpeg"
+
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -38,11 +33,11 @@ func (app *Application) StartRecordApp(cfg *ConfigurationArgs) {
 			continue
 		}
 
-		if cfg.Streams[i].RecordStream && cfg.Streams[i].RamSize > 0 {
+		if cfg.Streams[i].RecordStream && cfg.Streams[i].FileSize > 0 {
 			streamSaver := StreamSaver{}
-			streamSaver.ramStore = NewRamStore(cfg.Streams[i].RamSize)
+			streamSaver.ramStore = NewRamStore(cfg.Streams[i].FileSize)
 
-			streamSaver.mp4writer, err = NewMp4Writer(cfg.Mp4Directory, validUUID, cfg.Mp4FileSize, cfg.Mp4FileCount)
+			streamSaver.mp4writer, err = NewMp4Writer(cfg.Mp4Directory, validUUID, cfg.Streams[i].FileSize, cfg.Streams[i].FileCount)
 			if err != nil {
 				log.Panic("Can't crate mp4 writer", err)
 				return
@@ -139,7 +134,7 @@ func convertYcbCrImageToRgbaImage(original image.YCbCr) *image.RGBA {
 }
 
 func screenShotWrapper(ctx *gin.Context, app *Application) {
-	start := time.Now()
+	//start := time.Now()
 
 	cuuid := ctx.Param("suuid")
 	streamID, err := uuid.Parse(uuidRegExp.FindString(cuuid))
@@ -228,63 +223,64 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 
 	log.Printf("Время получения пакетов %v", time.Since(measureStart))
 
-	decoder, err := ffmpeg.NewVideoDecoder(codecData[0])
-	if err != nil {
-		log.Print(err)
-		ctx.JSON(404, err.Error())
-		return
-	}
+	ctx.JSON(200, pktArray)
 
-	measureStart = time.Now()
+	//decoder, err := ffmpeg.NewVideoDecoder(codecData[0])
+	//if err != nil {
+	//	log.Print(err)
+	//	ctx.JSON(404, err.Error())
+	//	return
+	//}
+	//
+	//measureStart = time.Now()
+	//
+	//var img *ffmpeg.VideoFrame
+	//for i := range pktArray {
+	//	err = decoder.DecoderAppendPkt(pktArray[i].Data)
+	//	if err != nil {
+	//		log.Print(err)
+	//		ctx.JSON(404, err.Error())
+	//		return
+	//	}
+	//}
+	//
+	//log.Printf("Время декодирования %v", time.Since(measureStart))
+	//measureStart = time.Now()
+	//
+	//img, err = decoder.DecoderReceiveFrame()
+	//if err != nil {
+	//	err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
+	//	log.Print(err)
+	//	ctx.JSON(404, err.Error())
+	//	return
+	//}
+	//decoder.Free()
+	//
+	//log.Printf("Время получения изображения %v", time.Since(measureStart))
+	//measureStart = time.Now()
+	//
+	//if img == nil {
+	//	err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
+	//	log.Print(err)
+	//	ctx.JSON(404, err.Error())
+	//	return
+	//}
+	//
+	//buf := new(bytes.Buffer)
+	//err = jpeg.Encode(buf, &img.Image, &jpeg.EncoderOptions{Quality: 90})
+	//if err != nil {
+	//	err = errors.New(fmt.Sprintf("Ошибка преобразования в jpeg для времени %v", timeT))
+	//	log.Print(err)
+	//	ctx.JSON(404, err.Error())
+	//	return
+	//}
+	//
+	//img.Free()
+	//
+	//log.Printf("Время преобразования в JPEG %v", time.Since(measureStart))
+	//log.Printf("Время получения изображения суммарно %v", time.Since(start))
+	//
+	//ctx.Data(200, "image/jpeg", buf.Bytes())
 
-	var img *ffmpeg.VideoFrame
-	for i := range pktArray {
-		err = decoder.DecoderAppendPkt(pktArray[i].Data)
-		if err != nil {
-			log.Print(err)
-			ctx.JSON(404, err.Error())
-			return
-		}
-	}
-
-	log.Printf("Время декодирования %v", time.Since(measureStart))
-	measureStart = time.Now()
-
-	img, err = decoder.DecoderReceiveFrame()
-	if err != nil {
-		err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
-		log.Print(err)
-		ctx.JSON(404, err.Error())
-		return
-	}
-	decoder.Free()
-
-	log.Printf("Время получения изображения %v", time.Since(measureStart))
-	measureStart = time.Now()
-
-	if img == nil {
-		err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
-		log.Print(err)
-		ctx.JSON(404, err.Error())
-		return
-	}
-
-	buf := new(bytes.Buffer)
-	err = jpeg.Encode(buf, &img.Image, &jpeg.EncoderOptions{Quality: 90})
-	if err != nil {
-		err = errors.New(fmt.Sprintf("Ошибка преобразования в jpeg для времени %v", timeT))
-		log.Print(err)
-		ctx.JSON(404, err.Error())
-		return
-	}
-
-	img.Free()
-
-	log.Printf("Время преобразования в JPEG %v", time.Since(measureStart))
-	log.Printf("Время получения изображения суммарно %v", time.Since(start))
-
-	ctx.Data(200, "image/jpeg", buf.Bytes())
-
-	//ctx.JSON(200, pktArray)
 	return
 }

@@ -3,7 +3,7 @@ package videoserver
 import (
 	"container/list"
 	"fmt"
-	"github.com/LdDl/vdk/av"
+	"github.com/deepch/vdk/av"
 	"github.com/pkg/errors"
 	"log"
 	"sync"

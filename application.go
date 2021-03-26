@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 
-	"github.com/LdDl/vdk/av"
+	"github.com/deepch/vdk/av"
 	"github.com/google/uuid"
 )
 
@@ -50,9 +50,10 @@ type StreamConfiguration struct {
 	URL                  string   `json:"url"`
 	Status               bool     `json:"status"`
 	SupportedStreamTypes []string `json:"supported_stream_types"`
+	OnDemand             bool     `json:"on_demand"`
+	RunLock              bool     `json:"-"`
 	Codecs               []av.CodecData
 	Clients              map[uuid.UUID]Viewer
-	hlsChanel            chan av.Packet
 }
 
 type Viewer struct {
@@ -86,7 +87,6 @@ func NewApplication(cfg *ConfigurationArgs) (*Application, error) {
 		tmp.Streams.Streams[validUUID] = &StreamConfiguration{
 			URL:                  cfg.Streams[i].URL,
 			Clients:              make(map[uuid.UUID]Viewer),
-			hlsChanel:            make(chan av.Packet, 100),
 			SupportedStreamTypes: cfg.Streams[i].StreamTypes,
 		}
 	}
@@ -106,21 +106,6 @@ func (app *Application) setCors(cfg *CorsConfiguration) {
 	app.CorsConfig.AllowCredentials = cfg.AllowCredentials
 }
 
-func (app *Application) cast(streamID uuid.UUID, pck av.Packet) error {
-	app.Streams.Lock()
-	defer app.Streams.Unlock()
-	curStream, ok := app.Streams.Streams[streamID]
-	if !ok {
-		return ErrStreamNotFound
-	}
-	curStream.hlsChanel <- pck
-	for _, v := range curStream.Clients {
-		if len(v.c) < cap(v.c) {
-			v.c <- pck
-		}
-	}
-	return nil
-}
 func (app *Application) castMSE(streamID uuid.UUID, pck av.Packet) error {
 	app.Streams.Lock()
 	defer app.Streams.Unlock()
@@ -213,12 +198,6 @@ func (app *Application) clientDelete(streamID, clientID uuid.UUID) {
 	delete(app.Streams.Streams[streamID].Clients, clientID)
 }
 
-func (app *Application) startHlsCast(streamID uuid.UUID, stopCast chan bool) {
-	defer app.Streams.Unlock()
-	app.Streams.Lock()
-	go app.startHls(streamID, app.Streams.Streams[streamID].hlsChanel, stopCast)
-}
-
 func (app *Application) list() (uuid.UUID, []uuid.UUID) {
 	defer app.Streams.Unlock()
 	app.Streams.Lock()
@@ -231,4 +210,36 @@ func (app *Application) list() (uuid.UUID, []uuid.UUID) {
 		res = append(res, k)
 	}
 	return first, res
+}
+
+func (app *Application) runIFNotRun(uuid uuid.UUID) {
+	defer app.Streams.Unlock()
+	app.Streams.Lock()
+	if tmp, ok := app.Streams.Streams[uuid]; ok {
+		if tmp.OnDemand && !tmp.RunLock {
+			tmp.RunLock = true
+			app.Streams.Streams[uuid] = tmp
+			go app.StreamWorkerLoop(uuid)
+		}
+	}
+}
+
+func (app *Application) runUnlock(uuid uuid.UUID) {
+	defer app.Streams.Unlock()
+	app.Streams.Lock()
+	if tmp, ok := app.Streams.Streams[uuid]; ok {
+		if tmp.OnDemand && tmp.RunLock {
+			tmp.RunLock = false
+			app.Streams.Streams[uuid] = tmp
+		}
+	}
+}
+
+func (app *Application) hasViewer(uuid uuid.UUID) bool {
+	defer app.Streams.Unlock()
+	app.Streams.Lock()
+	if tmp, ok := app.Streams.Streams[uuid]; ok && len(tmp.Clients) > 0 {
+		return true
+	}
+	return false
 }

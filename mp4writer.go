@@ -2,8 +2,8 @@ package videoserver
 
 import (
 	"fmt"
-	"github.com/LdDl/vdk/av"
-	"github.com/LdDl/vdk/format/mp4"
+	"github.com/deepch/vdk/av"
+	"github.com/deepch/vdk/format/mp4"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"log"

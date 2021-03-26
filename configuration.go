@@ -12,6 +12,8 @@ const (
 	defaultHlsMsPerSegment = 10000
 	defaultHlsCapacity     = 10
 	defaultHlsWindowSize   = 5
+	defaultFileSize        = 134217728
+	defaultFileCount       = 5
 )
 
 // ConfigurationArgs Configuration parameters for application as JSON-file
@@ -24,8 +26,6 @@ type ConfigurationArgs struct {
 	HlsCapacity     uint                `json:"hls_window_capacity"`
 	CorsConfig      CorsConfiguration   `json:"cors_config"`
 	Mp4Directory    string              `json:"mp4_directory"`
-	Mp4FileSize     int                 `json:"mp4_file_size"`
-	Mp4FileCount    int                 `json:"mp4_file_count"`
 }
 
 // CorsConfiguration Configuration of CORS requests
@@ -44,7 +44,8 @@ type StreamArg struct {
 	URL          string   `json:"url"`
 	StreamTypes  []string `json:"stream_types"`
 	RecordStream bool     `json:"record_stream"`
-	RamSize      int      `json:"ram_size"`
+	FileSize     int      `json:"file_size"`
+	FileCount    int      `json:"file_count"`
 }
 
 // ServerConfiguration Configuration parameters for server
@@ -80,5 +81,14 @@ func NewConfiguration(fname string) (*ConfigurationArgs, error) {
 	if conf.HlsWindowSize > conf.HlsCapacity {
 		conf.HlsWindowSize = conf.HlsCapacity
 	}
+	for i := range conf.Streams {
+		if conf.Streams[i].FileSize == 0 {
+			conf.Streams[i].FileSize = defaultFileSize
+		}
+		if conf.Streams[i].FileCount == 0 {
+			conf.Streams[i].FileCount = defaultFileCount
+		}
+	}
+
 	return &conf, nil
 }

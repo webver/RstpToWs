@@ -7,12 +7,51 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/deepch/vdk/av"
+	"github.com/deepch/vdk/format/ts"
 	"github.com/google/uuid"
 	"github.com/grafov/m3u8"
-	"github.com/LdDl/vdk/av"
-	"github.com/LdDl/vdk/format/ts"
 	"github.com/pkg/errors"
 )
+
+func (app *Application) StartHlsApp() {
+	for _, streamID := range app.Streams.getKeys() {
+		if app.existsWithType(streamID, "hls") {
+			go app.StartHlsLoop(streamID)
+		}
+	}
+}
+
+func (app *Application) StartHlsLoop(streamID uuid.UUID) {
+	cuuid, viewer, err := app.clientAdd(streamID)
+	if err != nil {
+		log.Printf("Can't add client for '%s' due the error: %s\n", streamID, err.Error())
+		return
+	}
+	defer app.clientDelete(streamID, cuuid)
+
+	quitCh := make(chan bool, 1)
+
+	for {
+		select {
+		case status := <-viewer.status: //Перезапускает запись при реконнектах камеры
+			if status == true {
+				codecData, err := app.codecGet(streamID)
+				if err != nil {
+					log.Printf("Can't get codec data for '%s' due the error: %s\n", streamID, err.Error())
+				}
+
+				if codecData != nil {
+					go app.startHls(streamID, viewer.c, quitCh)
+				}
+			} else {
+				if len(quitCh) < cap(quitCh) {
+					quitCh <- false
+				}
+			}
+		}
+	}
+}
 
 func (app *Application) startHls(streamID uuid.UUID, ch chan av.Packet, stopCast chan bool) error {
 

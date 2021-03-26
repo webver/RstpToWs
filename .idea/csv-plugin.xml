@@ -17,6 +17,13 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="\application.go">
+          <value>
+            <Attribute>
+              <option name="separator" value="&#9;" />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="\cmd\video_server\conf.json">
           <value>
             <Attribute>

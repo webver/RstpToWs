@@ -13,19 +13,21 @@
             "guid": "37e8df8f-6062-489b-8fad-3b76952965d7",
             "url": "rtsp://admin:admin@10.151.3.77:554/main",
             "stream_types": [
-                "mse"
+                "mse", "hls"
             ],
             "record_stream": true,
-            "ram_size": 33554432
+            "file_size": 268435456,
+            "files_count": 100
         },
         {
             "guid": "6c31f7bd-c842-4645-89b5-427b1a5b57ff",
             "url": "rtsp://admin:admin@10.151.3.71:554/main",
             "stream_types": [
-                "mse"
+                "mse", "hls"
             ],
             "record_stream": true,
-            "ram_size": 33554432
+            "file_size": 134217728,
+            "files_count": 100
         }
     ],
     "cors_config": {
@@ -36,7 +38,5 @@
         "expose_headers": ["Content-Length"],
         "allow_credentials":true
     },
-    "mp4_directory": "mp4",
-    "mp4_file_size": 33554432,
-    "mp4_file_count": 5
+    "mp4_directory": "mp4"
 }
