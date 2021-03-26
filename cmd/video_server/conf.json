@@ -1,58 +1,42 @@
 {
-  "server": {
-    "http_addr": "localhost",
-    "http_port": 8083
-  },
-  "hls_ms_per_segment": 10000,
-  "hls_directory": "./hls",
-  "hls_window_size": 5,
-  "hls_window_capacity": 10,
-  "streams": [
-    {
-      "guid": "37e8df8f-6062-489b-8fad-3b76952965d7",
-      "url": "rtsp://admin:admin@10.151.3.77:554/main",
-      "stream_types": [
-        "mse"
-      ],
-      "record_stream": true,
-      "ram_size": 33554432
+    "server": {
+        "http_addr": "localhost",
+        "video_http_port": 8090,
+        "api_http_port": 8091
     },
-    {
-      "guid": "6c31f7bd-c842-4645-89b5-427b1a5b57ff",
-      "url": "rtsp://admin:admin@10.151.3.71:554/main",
-      "stream_types": [
-        "mse"
-      ],
-      "record_stream": true,
-      "ram_size": 33554432
-    }
-  ],
-  "cors_config": {
-    "use_cors": true,
-    "allow_origins": [
-      "*"
+    "hls_ms_per_segment": 10000,
+    "hls_directory": "./hls",
+    "hls_window_size": 5,
+    "hls_window_capacity" : 10,
+    "streams": [
+        {
+            "guid": "37e8df8f-6062-489b-8fad-3b76952965d7",
+            "url": "rtsp://admin:admin@10.151.3.77:554/main",
+            "stream_types": [
+                "mse"
+            ],
+            "record_stream": true,
+            "ram_size": 33554432
+        },
+        {
+            "guid": "6c31f7bd-c842-4645-89b5-427b1a5b57ff",
+            "url": "rtsp://admin:admin@10.151.3.71:554/main",
+            "stream_types": [
+                "mse"
+            ],
+            "record_stream": true,
+            "ram_size": 33554432
+        }
     ],
-    "allow_methods": [
-      "GET",
-      "PUT",
-      "POST",
-      "DELETE"
-    ],
-    "allow_headers": [
-      "Origin",
-      "Authorization",
-      "Content-Type",
-      "Content-Length",
-      "Accept",
-      "Accept-Encoding",
-      "X-HttpRequest"
-    ],
-    "expose_headers": [
-      "Content-Length"
-    ],
-    "allow_credentials": true
-  },
-  "mp4_directory": "mp4",
-  "mp4_file_size": 33554432,
-  "mp4_file_count": 5
+    "cors_config": {
+        "use_cors": true,
+        "allow_origins": ["*"],
+        "allow_methods": ["GET", "PUT", "POST", "DELETE"],
+        "allow_headers": ["Origin", "Authorization", "Content-Type", "Content-Length", "Accept", "Accept-Encoding", "X-HttpRequest"],
+        "expose_headers": ["Content-Length"],
+        "allow_credentials":true
+    },
+    "mp4_directory": "mp4",
+    "mp4_file_size": 33554432,
+    "mp4_file_count": 5
 }
