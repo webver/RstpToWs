@@ -1,9 +1,15 @@
 package videoserver
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
 	"github.com/deepch/vdk/av"
+	"github.com/deepch/vdk/cgo/ffmpeg"
+	"github.com/pixiv/go-libjpeg/jpeg"
 	"image"
 	"image/color"
+	"sync"
 
 	"strconv"
 
@@ -14,6 +20,7 @@ import (
 )
 
 type RecordApp struct {
+	m     sync.Mutex
 	store map[uuid.UUID]StreamSaver
 }
 
@@ -43,8 +50,9 @@ func (app *Application) StartRecordApp(cfg *ConfigurationArgs) {
 				return
 			}
 
+			app.RecordApp.m.Lock()
 			app.RecordApp.store[validUUID] = streamSaver
-
+			app.RecordApp.m.Unlock()
 		}
 	}
 
@@ -55,6 +63,9 @@ func (app *Application) StartRecordApp(cfg *ConfigurationArgs) {
 }
 
 func (app *Application) StartHddSaver(streamID uuid.UUID) {
+	app.RecordApp.m.Lock()
+	m4Writer := app.RecordApp.store[streamID].mp4writer
+	app.RecordApp.m.Unlock()
 
 	if app.existsWithType(streamID, "mse") {
 		cuuid, viewer, err := app.clientAdd(streamID)
@@ -64,32 +75,46 @@ func (app *Application) StartHddSaver(streamID uuid.UUID) {
 		}
 		defer app.clientDelete(streamID, cuuid)
 
-		quitCh := make(chan bool, 1)
+		//quitCh := make(chan bool, 1)
 
 		for {
-			select {
-			case status := <-viewer.status: //Перезапускает запись при реконнектах камеры
-				if status == true {
-					codecData, err := app.codecGet(streamID)
-					if err != nil {
-						log.Printf("Can't get codec data for '%s' due the error: %s\n", streamID, err.Error())
-					}
+			//select {
+			//case status := <-viewer.status: //Перезапускает запись при реконнектах камеры
+			//	if status == true {
+			status, err := app.getStatus(streamID)
+			if err != nil {
+				log.Printf("Can't get status data for '%s' due the error: %s", streamID, err.Error())
+			}
 
-					if codecData != nil {
-						go app.RecordApp.store[streamID].mp4writer.startMp4Writer(codecData, viewer.c, quitCh)
-					}
-				} else {
-					if len(quitCh) < cap(quitCh) {
-						quitCh <- false
-					}
+			codecData, err := app.codecGet(streamID)
+			if err != nil {
+				log.Printf("Can't get codec data for '%s' due the error: %s", streamID, err.Error())
+			}
+
+			if status && codecData != nil {
+				//Перезапуск при реконнектах камеры
+				err := m4Writer.startMp4Writer(codecData, viewer.c, viewer.status)
+				if err != nil {
+					log.Printf("Mp4 writer for '%s' stopped: %s", streamID, err.Error())
 				}
 			}
+
+			time.Sleep(1 * time.Second)
+
+			//} else {
+			//	if len(quitCh) < cap(quitCh) {
+			//		quitCh <- false
+			//	}
+			//}
+			//}
 		}
 	}
 }
 
 func (app *Application) StartRamSaver(streamID uuid.UUID) {
-
+	app.RecordApp.m.Lock()
+	ramStore := app.RecordApp.store[streamID].ramStore
+	app.RecordApp.m.Unlock()
 	quitCh := make(chan bool, 1)
 
 	if app.existsWithType(streamID, "mse") {
@@ -103,11 +128,17 @@ func (app *Application) StartRamSaver(streamID uuid.UUID) {
 		for {
 			select {
 			case <-quitCh:
-				app.RecordApp.store[streamID].ramStore.Clear()
+				err = ramStore.Clear()
+				if err != nil {
+					log.Printf("Can't clear ram buffer for stream '%s' due the error: %s\n", streamID, err.Error())
+				}
 				return
 			case pck := <-viewer.c:
 				if pck.Idx == 0 { //Пишем только видео
-					app.RecordApp.store[streamID].ramStore.AppendPkt(pck)
+					err = ramStore.AppendPkt(pck)
+					if err != nil {
+						log.Printf("Can't append packet for stream '%s' due the error: %s\n", streamID, err.Error())
+					}
 				}
 			}
 		}
@@ -134,7 +165,7 @@ func convertYcbCrImageToRgbaImage(original image.YCbCr) *image.RGBA {
 }
 
 func screenShotWrapper(ctx *gin.Context, app *Application) {
-	//start := time.Now()
+	start := time.Now()
 
 	cuuid := ctx.Param("suuid")
 	streamID, err := uuid.Parse(uuidRegExp.FindString(cuuid))
@@ -173,8 +204,18 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 
 	measureStart := time.Now()
 
-	if timeT.After(app.RecordApp.store[streamID].ramStore.firstPktTime) && timeT.Before(app.RecordApp.store[streamID].ramStore.lastPktTime) {
-		pktArray, err = app.RecordApp.store[streamID].ramStore.FindPacket(timeT)
+	app.RecordApp.m.Lock()
+	streamSaver, ok := app.RecordApp.store[streamID]
+	app.RecordApp.m.Unlock()
+	if !ok {
+		err = errors.New(fmt.Sprintf("Поток %s не найден", streamID.String()))
+		log.Print(err)
+		ctx.JSON(404, err.Error())
+		return
+	}
+
+	if timeT.After(streamSaver.ramStore.firstPktTime) && timeT.Before(streamSaver.ramStore.lastPktTime) {
+		pktArray, err = streamSaver.ramStore.FindPacket(timeT)
 		if err != nil {
 			log.Print(err)
 			ctx.JSON(404, err.Error())
@@ -196,7 +237,7 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 			return
 		}
 	} else {
-		fileName, segmentStartTime, err := app.RecordApp.store[streamID].mp4writer.segmentStore.FindSegment(timeT)
+		fileName, segmentStartTime, err := streamSaver.mp4writer.segmentStore.FindSegment(timeT)
 		if err != nil {
 			log.Print(err)
 			ctx.JSON(404, err.Error())
@@ -205,7 +246,7 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 
 		timeInFile := timeT.Sub(segmentStartTime)
 
-		codecData, pktArray, err = app.RecordApp.store[streamID].mp4writer.FindInFile(fileName, timeInFile)
+		codecData, pktArray, err = streamSaver.mp4writer.FindInFile(fileName, timeInFile)
 		if err != nil {
 			log.Print(err)
 			ctx.JSON(404, err.Error())
@@ -223,64 +264,64 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 
 	log.Printf("Время получения пакетов %v", time.Since(measureStart))
 
-	ctx.JSON(200, pktArray)
+	//ctx.JSON(200, pktArray)
 
-	//decoder, err := ffmpeg.NewVideoDecoder(codecData[0])
-	//if err != nil {
-	//	log.Print(err)
-	//	ctx.JSON(404, err.Error())
-	//	return
-	//}
-	//
-	//measureStart = time.Now()
-	//
-	//var img *ffmpeg.VideoFrame
-	//for i := range pktArray {
-	//	err = decoder.DecoderAppendPkt(pktArray[i].Data)
-	//	if err != nil {
-	//		log.Print(err)
-	//		ctx.JSON(404, err.Error())
-	//		return
-	//	}
-	//}
-	//
-	//log.Printf("Время декодирования %v", time.Since(measureStart))
-	//measureStart = time.Now()
-	//
-	//img, err = decoder.DecoderReceiveFrame()
-	//if err != nil {
-	//	err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
-	//	log.Print(err)
-	//	ctx.JSON(404, err.Error())
-	//	return
-	//}
-	//decoder.Free()
-	//
-	//log.Printf("Время получения изображения %v", time.Since(measureStart))
-	//measureStart = time.Now()
-	//
-	//if img == nil {
-	//	err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
-	//	log.Print(err)
-	//	ctx.JSON(404, err.Error())
-	//	return
-	//}
-	//
-	//buf := new(bytes.Buffer)
-	//err = jpeg.Encode(buf, &img.Image, &jpeg.EncoderOptions{Quality: 90})
-	//if err != nil {
-	//	err = errors.New(fmt.Sprintf("Ошибка преобразования в jpeg для времени %v", timeT))
-	//	log.Print(err)
-	//	ctx.JSON(404, err.Error())
-	//	return
-	//}
-	//
-	//img.Free()
-	//
-	//log.Printf("Время преобразования в JPEG %v", time.Since(measureStart))
-	//log.Printf("Время получения изображения суммарно %v", time.Since(start))
-	//
-	//ctx.Data(200, "image/jpeg", buf.Bytes())
+	decoder, err := ffmpeg.NewVideoDecoder(codecData[0])
+	if err != nil {
+		log.Print(err)
+		ctx.JSON(404, err.Error())
+		return
+	}
+
+	measureStart = time.Now()
+
+	var img *ffmpeg.VideoFrame
+	for i := range pktArray {
+		err = decoder.DecoderAppendPkt(pktArray[i].Data)
+		if err != nil {
+			log.Print(err)
+			ctx.JSON(404, err.Error())
+			return
+		}
+	}
+
+	log.Printf("Время декодирования %v", time.Since(measureStart))
+	measureStart = time.Now()
+
+	img, err = decoder.DecoderReceiveFrame()
+	if err != nil {
+		err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
+		log.Print(err)
+		ctx.JSON(404, err.Error())
+		return
+	}
+	decoder.Free()
+
+	log.Printf("Время получения изображения %v", time.Since(measureStart))
+	measureStart = time.Now()
+
+	if img == nil {
+		err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
+		log.Print(err)
+		ctx.JSON(404, err.Error())
+		return
+	}
+
+	buf := new(bytes.Buffer)
+	err = jpeg.Encode(buf, &img.Image, &jpeg.EncoderOptions{Quality: 90})
+	if err != nil {
+		err = errors.New(fmt.Sprintf("Ошибка преобразования в jpeg для времени %v", timeT))
+		log.Print(err)
+		ctx.JSON(404, err.Error())
+		return
+	}
+
+	img.Free()
+
+	log.Printf("Время преобразования в JPEG %v", time.Since(measureStart))
+	log.Printf("Время получения изображения суммарно %v", time.Since(start))
+
+	ctx.Data(200, "image/jpeg", buf.Bytes())
 
 	return
 }

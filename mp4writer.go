@@ -126,7 +126,7 @@ func (mp4Writer *Mp4Writer) startMp4Writer(codecData []av.CodecData, ch chan av.
 		if mp4Writer.lastKeyFrame.IsKeyFrame {
 			isStarted = true
 			now := time.Now().UTC()
-			mp4Writer.startTime = now.Add(-mp4Writer.lastKeyFrame.Time)
+			//mp4Writer.startTime = now.Add(-mp4Writer.lastKeyFrame.Time)
 			mp4Writer.firstPacketTime = now
 			if err = mp4Muxer.WritePacket(mp4Writer.lastKeyFrame); err != nil {
 				return errors.Wrap(err, fmt.Sprintf("Can't write packet for mp4 muxer for stream %s (1)", mp4Writer.streamID))
@@ -175,7 +175,7 @@ func (mp4Writer *Mp4Writer) startMp4Writer(codecData []av.CodecData, ch chan av.
 		}
 
 		if err = mp4Muxer.WriteTrailerWithStartTime(mp4Writer.firstPacketTime); err != nil {
-			log.Printf("Can't write trailing data for TS muxer for %s: %s\n", mp4Writer.streamID, err.Error())
+			log.Printf("Can't write trailing data for Mp4 muxer for %s: %s\n", mp4Writer.streamID, err.Error())
 		}
 
 		if err = outFile.Close(); err != nil {

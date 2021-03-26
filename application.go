@@ -54,6 +54,7 @@ type StreamConfiguration struct {
 	RunLock              bool     `json:"-"`
 	Codecs               []av.CodecData
 	Clients              map[uuid.UUID]Viewer
+	CloseGracefully      chan bool
 }
 
 type Viewer struct {
@@ -88,10 +89,12 @@ func NewApplication(cfg *ConfigurationArgs) (*Application, error) {
 			URL:                  cfg.Streams[i].URL,
 			Clients:              make(map[uuid.UUID]Viewer),
 			SupportedStreamTypes: cfg.Streams[i].StreamTypes,
+			CloseGracefully:      make(chan bool, 1),
 		}
 	}
 	return &tmp, nil
 }
+
 func (app *Application) setCors(cfg *CorsConfiguration) {
 	newCors := cors.DefaultConfig()
 	app.CorsConfig = &newCors
@@ -120,6 +123,7 @@ func (app *Application) castMSE(streamID uuid.UUID, pck av.Packet) error {
 	}
 	return nil
 }
+
 func (app *Application) exists(streamID uuid.UUID) bool {
 	app.Streams.Lock()
 	defer app.Streams.Unlock()
@@ -172,6 +176,17 @@ func (app *Application) updateStatus(streamID uuid.UUID, status bool) error {
 		}
 	}
 	return nil
+}
+
+func (app *Application) getStatus(streamID uuid.UUID) (bool, error) {
+	app.Streams.Lock()
+	defer app.Streams.Unlock()
+	t, ok := app.Streams.Streams[streamID]
+	if !ok {
+		return false, ErrStreamNotFound
+	}
+
+	return t.Status, nil
 }
 
 func (app *Application) clientAdd(streamID uuid.UUID) (uuid.UUID, *Viewer, error) {

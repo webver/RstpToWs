@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"syscall"
+	"time"
 
 	videoserver "github.com/LdDl/video-server"
 )
@@ -63,11 +64,14 @@ func main() {
 	go func() {
 		sig := <-sigOUT
 		log.Println("Server has captured signal:", sig)
+		app.CloseStreams()
 		exit <- true
 	}()
 	log.Println("Server has been started (awaiting signal to exit)")
 	<-exit
 	log.Println("Stopping video_server")
+
+	time.Sleep(5 * time.Second)
 
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)

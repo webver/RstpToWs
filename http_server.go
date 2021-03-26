@@ -146,9 +146,10 @@ func EnableCamera(app *Application) func(ctx *gin.Context) {
 				URL:                  postData.URL,
 				Clients:              make(map[uuid.UUID]Viewer),
 				SupportedStreamTypes: postData.StreamTypes,
+				CloseGracefully:      make(chan bool, 1),
 			}
 			app.Streams.Unlock()
-			app.runIFNotRun(postData.GUID)
+			go app.StreamWorkerLoop(postData.GUID)
 		}
 		ctx.JSON(200, app)
 	}
@@ -164,9 +165,10 @@ func DisableCamera(app *Application) func(ctx *gin.Context) {
 		}
 
 		if exist := app.exists(postData.GUID); exist {
+			app.CloseStream(postData.GUID)
+
 			app.Streams.Lock()
 			delete(app.Streams.Streams, postData.GUID)
-			//TODO delete stream worker
 			app.Streams.Unlock()
 		}
 		ctx.JSON(200, app)

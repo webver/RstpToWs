@@ -30,30 +30,40 @@ func (app *Application) StartHlsLoop(streamID uuid.UUID) {
 	}
 	defer app.clientDelete(streamID, cuuid)
 
-	quitCh := make(chan bool, 1)
+	//quitCh := make(chan bool, 1)
 
 	for {
-		select {
-		case status := <-viewer.status: //Перезапускает запись при реконнектах камеры
-			if status == true {
-				codecData, err := app.codecGet(streamID)
-				if err != nil {
-					log.Printf("Can't get codec data for '%s' due the error: %s\n", streamID, err.Error())
-				}
+		//select {
+		//case status := <-viewer.status: //Перезапускает запись при реконнектах камеры
+		//	if status == true {
+		status, err := app.getStatus(streamID)
+		if err != nil {
+			log.Printf("Can't get status data for '%s' due the error: %s", streamID, err.Error())
+		}
 
-				if codecData != nil {
-					go app.startHls(streamID, viewer.c, quitCh)
-				}
-			} else {
-				if len(quitCh) < cap(quitCh) {
-					quitCh <- false
-				}
+		codecData, err := app.codecGet(streamID)
+		if err != nil {
+			log.Printf("Can't get codec data for '%s' due the error: %s", streamID, err.Error())
+		}
+
+		if status && codecData != nil {
+			err = app.startHls(streamID, viewer.c, viewer.status)
+			if err != nil {
+				log.Printf("Hls writer for '%s' stopped: %s", streamID, err.Error())
 			}
 		}
+
+		time.Sleep(1 * time.Second)
+		//	} else {
+		//		if len(quitCh) < cap(quitCh) {
+		//			quitCh <- false
+		//		}
+		//	}
+		//}
 	}
 }
 
-func (app *Application) startHls(streamID uuid.UUID, ch chan av.Packet, stopCast chan bool) error {
+func (app *Application) startHls(streamID uuid.UUID, ch chan av.Packet, statusCh chan bool) error {
 
 	err := ensureDir(app.HlsDirectory)
 	if err != nil {
@@ -122,9 +132,11 @@ func (app *Application) startHls(streamID uuid.UUID, ch chan av.Packet, stopCast
 	segmentLoop:
 		for {
 			select {
-			case <-stopCast:
-				isConnected = false
-				break segmentLoop
+			case status := <-statusCh:
+				if status == false {
+					isConnected = false
+					break segmentLoop
+				}
 			case pck := <-ch:
 				if pck.Idx == videoStreamIdx && pck.IsKeyFrame {
 					start = true
