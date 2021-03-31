@@ -58,8 +58,9 @@ func (ramStore *RamStore) AppendPkt(pkt av.Packet) error {
 	defer ramStore.m.Unlock()
 
 	if ramStore.rxPktNumber == 0 {
-		ramStore.startTime = time.Now().UTC().Add(-pkt.Time)
-		ramStore.firstPktTime = ramStore.startTime.Add(pkt.Time)
+		now := time.Now().UTC()
+		ramStore.startTime = now.Add(-pkt.Time).Add(-pkt.CompositionTime)
+		ramStore.firstPktTime = now
 	}
 
 	if ramStore.rxPktNumber == 1 {
@@ -68,23 +69,23 @@ func (ramStore *RamStore) AppendPkt(pkt av.Packet) error {
 
 	ramStore.rxPktNumber++
 
-	idx := ramStore.startTime.Add(pkt.Time)
-	//idx, err := ramStore.convertTimeToIndex(ramStore.startTime.Add(pkt.Time))
+	tm := ramStore.startTime.Add(pkt.Time).Add(pkt.CompositionTime)
+	//tm, err := ramStore.convertTimeToIndex(ramStore.startTime.Add(pkt.Time).Add(pkt.CompositionTime))
 	//if err != nil {
 	//	return err
 	//}
 
-	ramStore.lastPktTime = idx
+	ramStore.lastPktTime = tm
 
-	if _, ok := ramStore.dataMap[idx]; ok {
+	if _, ok := ramStore.dataMap[tm]; ok {
 		return nil
 	}
 
-	newElem := ramStore.keysQueue.PushBack(idx)
-	ramStore.dataMap[idx] = MapElem{Pkt: pkt, QueueElement: newElem}
+	newElem := ramStore.keysQueue.PushBack(tm)
+	ramStore.dataMap[tm] = MapElem{Pkt: pkt, QueueElement: newElem}
 
 	ramStore.storeSize += len(pkt.Data)
-	if ramStore.storeSize > ramStore.maxStoreSize && ramStore.keysQueue.Len() > 0 {
+	if ramStore.storeSize > ramStore.maxStoreSize && ramStore.keysQueue.Len() > 1 {
 		elem := ramStore.keysQueue.Front()
 		if key, ok := elem.Value.(time.Time); ok {
 			if mapElem, ok := ramStore.dataMap[key]; ok {
@@ -96,8 +97,13 @@ func (ramStore *RamStore) AppendPkt(pkt av.Packet) error {
 			delete(ramStore.dataMap, key)
 
 			nextElem := elem.Next()
-			if nextId, ok := nextElem.Value.(time.Time); ok {
-				ramStore.firstPktTime = nextId
+			if nextElem != nil {
+				if nextId, ok := nextElem.Value.(time.Time); ok {
+					ramStore.firstPktTime = nextId
+				} else {
+					err = errors.New(fmt.Sprintf("Очередь не содержит следуюий"))
+					ramStore.firstPktTime = ramStore.lastPktTime
+				}
 			} else {
 				err = errors.New(fmt.Sprintf("Очередь не содержит следуюий"))
 				ramStore.firstPktTime = ramStore.lastPktTime
@@ -179,6 +185,7 @@ func (ramStore *RamStore) Clear() error {
 	ramStore.m.Lock()
 	defer ramStore.m.Unlock()
 
+	ramStore.rxPktNumber = 0
 	//ramStore.firstPktTime = 0
 	//ramStore.lastPktTime = 0
 
@@ -186,16 +193,7 @@ func (ramStore *RamStore) Clear() error {
 		delete(ramStore.dataMap, k)
 	}
 
-	elem := ramStore.keysQueue.Front()
-	for {
-		deletedElem := elem
-		elem = elem.Next()
-		if deletedElem != nil {
-			ramStore.keysQueue.Remove(deletedElem)
-		} else {
-			break
-		}
-	}
+	ramStore.keysQueue.Init()
 
 	return err
 }

@@ -90,6 +90,11 @@ m3u8 library - [https://github.com/grafov/m3u8](https://github.com/grafov/m3u8).
 
 errors wrapping - [https://github.com/pkg/errors](https://github.com/pkg/errors) . License is [BSD 2-Clause](https://github.com/pkg/errors/blob/master/LICENSE)
 
+###For sreenshots install
+sudo apt install libjpeg
+sudo apt install ffmpeg
+sudo apt install libavcodec
+
 ## License
 You can check it [here](LICENSE.md)
 

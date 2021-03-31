@@ -20,7 +20,7 @@ func typeExists(typeName string, typesNames []string) bool {
 func (app *Application) StartStreams() {
 
 	for _, k := range app.Streams.getKeys() {
-		go app.StreamWorkerLoop(k)
+		app.StartStream(k)
 	}
 }
 
@@ -30,25 +30,28 @@ func (app *Application) CloseStreams() {
 	}
 }
 
-func (app *Application) StreamWorkerLoop(k uuid.UUID) {
-	defer app.runUnlock(k)
+func (app *Application) StreamWorkerLoop(streamID uuid.UUID) {
+	defer app.runUnlock(streamID)
 	app.Streams.Lock()
-	onDemand := app.Streams.Streams[k].OnDemand
+	onDemand := app.Streams.Streams[streamID].OnDemand
 	app.Streams.Unlock()
 
 	for {
-		log.Println(k.String(), "Stream Try Connect")
-		err := app.StreamWorker(k)
+		log.Println(streamID.String(), "Stream Try Connect")
+		err := app.StreamWorker(streamID)
 		if err != nil {
 			log.Println(err)
 		} else {
-			//Выход без ошибки
-			log.Println(k.String(), "Close stream loop")
+			//Закрытие потока ошибки
+			app.Streams.Lock()
+			delete(app.Streams.Streams, streamID)
+			app.Streams.Unlock()
+			log.Println(streamID.String(), "Close stream worker loop")
 			return
 		}
 
-		if onDemand && !app.hasViewer(k) {
-			log.Println(k, ErrorStreamExitNoViewer)
+		if onDemand && !app.hasViewer(streamID) {
+			log.Println(streamID, ErrorStreamExitNoViewer)
 			return
 		}
 
@@ -56,25 +59,25 @@ func (app *Application) StreamWorkerLoop(k uuid.UUID) {
 	}
 }
 
-func (app *Application) StreamWorker(k uuid.UUID) error {
+func (app *Application) StreamWorker(streamID uuid.UUID) error {
 	app.Streams.Lock()
-	url := app.Streams.Streams[k].URL
-	onDemand := app.Streams.Streams[k].OnDemand
-	closeGracefully := app.Streams.Streams[k].CloseGracefully
+	url := app.Streams.Streams[streamID].URL
+	onDemand := app.Streams.Streams[streamID].OnDemand
+	closeGracefully := app.Streams.Streams[streamID].closeGracefully
 	app.Streams.Unlock()
 
 	keyTest := time.NewTimer(20 * time.Second)
 	clientTest := time.NewTimer(20 * time.Second)
-	RTSPClient, err := rtspv2.Dial(rtspv2.RTSPClientOptions{URL: url, DisableAudio: true, DialTimeout: 3 * time.Second, ReadWriteTimeout: 3 * time.Second, Debug: false})
+	RTSPClient, err := rtspv2.Dial(rtspv2.RTSPClientOptions{URL: url, DisableAudio: true, DialTimeout: 3 * time.Second, ReadWriteTimeout: 3 * time.Second, Debug: true})
 	if err != nil {
 		return err
 	}
 	defer RTSPClient.Close()
 	if RTSPClient.CodecData != nil {
-		app.codecAdd(k, RTSPClient.CodecData)
-		err = app.updateStatus(k, true)
+		app.codecAdd(streamID, RTSPClient.CodecData)
+		err = app.updateStatus(streamID, true)
 		if err != nil {
-			log.Printf("Can't update status 'true' for %s: %s\n", k, err.Error())
+			log.Printf("Can't update status 'true' for %s: %s\n", streamID, err.Error())
 		}
 	}
 	var AudioOnly bool
@@ -84,23 +87,24 @@ func (app *Application) StreamWorker(k uuid.UUID) error {
 	for {
 		select {
 		case <-clientTest.C:
-			if onDemand && !app.hasViewer(k) {
+			if onDemand && !app.hasViewer(streamID) {
 				return ErrorStreamExitNoViewer
 			}
 		case <-keyTest.C:
+			log.Printf("No video on stream %s:\n", streamID)
 			return ErrorStreamExitNoVideoOnStream
 		case signals := <-RTSPClient.Signals:
 			switch signals {
 			case rtspv2.SignalCodecUpdate:
-				app.codecAdd(k, RTSPClient.CodecData)
-				err = app.updateStatus(k, true)
+				app.codecAdd(streamID, RTSPClient.CodecData)
+				err = app.updateStatus(streamID, true)
 				if err != nil {
-					log.Printf("Can't update status 'true' for %s: %s\n", k, err.Error())
+					log.Printf("Can't update status 'true' for %s: %s\n", streamID, err.Error())
 				}
 			case rtspv2.SignalStreamRTPStop:
-				err = app.updateStatus(k, false)
+				err = app.updateStatus(streamID, false)
 				if err != nil {
-					log.Printf("Can't update status 'true' for %s: %s\n", k, err.Error())
+					log.Printf("Can't update status 'true' for %s: %s\n", streamID, err.Error())
 				}
 				return ErrorStreamExitRtspDisconnect
 			}
@@ -108,16 +112,26 @@ func (app *Application) StreamWorker(k uuid.UUID) error {
 			if AudioOnly || packetAV.IsKeyFrame {
 				keyTest.Reset(20 * time.Second)
 			}
-			app.castMSE(k, *packetAV)
+			err = app.castMSE(streamID, *packetAV)
+			if err != nil {
+				log.Printf("Can't cast for %s: %s\n", streamID, err.Error())
+			}
 		case <-closeGracefully:
-			err = app.updateStatus(k, false)
+			err = app.updateStatus(streamID, false)
 			return nil
 		}
+	}
+}
+
+func (app *Application) StartStream(streamID uuid.UUID) {
+	go app.StreamWorkerLoop(streamID)
+	if app.existsWithType(streamID, "hls") {
+		go app.startHlsWorkerLoop(streamID)
 	}
 }
 
 func (app *Application) CloseStream(streamID uuid.UUID) {
 	defer app.Streams.Unlock()
 	app.Streams.Lock()
-	app.Streams.Streams[streamID].CloseGracefully <- true
+	app.Streams.Streams[streamID].closeGracefully <- true
 }

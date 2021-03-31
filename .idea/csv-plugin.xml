@@ -17,6 +17,13 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="C:\Users\Роман\GolandProjects\pkg\mod\github.com\deepch\vdk@v0.0.0-20210321174211-d6080d8287d7\cgo\ffmpeg\ffmpeg.go">
+          <value>
+            <Attribute>
+              <option name="separator" value="&#9;" />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="\application.go">
           <value>
             <Attribute>
@@ -28,6 +35,13 @@
           <value>
             <Attribute>
               <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\hls.go">
+          <value>
+            <Attribute>
+              <option name="separator" value="&#9;" />
             </Attribute>
           </value>
         </entry>

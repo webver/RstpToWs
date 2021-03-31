@@ -10,24 +10,14 @@
     "hls_window_capacity" : 10,
     "streams": [
         {
-            "guid": "7e0ad4aa-fcbe-49d6-a34b-807d585d2678",
-            "url": "rtsp://admin:admin@10.151.3.77:554/main",
-            "stream_types": [
-                "mse", "hls"
-            ],
-            "record_stream": true,
-            "file_size": 268435456,
-            "files_count": 100
-        },
-        {
             "guid": "3d5b55dc-7920-4e4d-8d43-b86b429c1903",
-            "url": "rtsp://admin:admin@10.151.3.71:554/main",
+            "url": "rtsp://admin:admin@172.20.12.177:554/main",
             "stream_types": [
                 "mse", "hls"
             ],
             "record_stream": true,
-            "file_size": 134217728,
-            "files_count": 100
+            "file_size": 33554432,
+            "file_count": 100
         }
     ],
     "cors_config": {

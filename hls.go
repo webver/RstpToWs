@@ -17,25 +17,20 @@ import (
 func (app *Application) StartHlsApp() {
 	for _, streamID := range app.Streams.getKeys() {
 		if app.existsWithType(streamID, "hls") {
-			go app.StartHlsLoop(streamID)
+			go app.startHlsWorkerLoop(streamID)
 		}
 	}
 }
 
-func (app *Application) StartHlsLoop(streamID uuid.UUID) {
-	cuuid, viewer, err := app.clientAdd(streamID)
-	if err != nil {
-		log.Printf("Can't add client for '%s' due the error: %s\n", streamID, err.Error())
-		return
-	}
-	defer app.clientDelete(streamID, cuuid)
-
-	//quitCh := make(chan bool, 1)
+func (app *Application) startHlsWorkerLoop(streamID uuid.UUID) {
 
 	for {
-		//select {
-		//case status := <-viewer.status: //Перезапускает запись при реконнектах камеры
-		//	if status == true {
+		cuuid, viewer, err := app.clientAdd(streamID)
+		if err != nil {
+			log.Printf("Can't add client for '%s' due the error: %s\n", streamID, err.Error())
+			return
+		}
+
 		status, err := app.getStatus(streamID)
 		if err != nil {
 			log.Printf("Can't get status data for '%s' due the error: %s", streamID, err.Error())
@@ -50,16 +45,21 @@ func (app *Application) StartHlsLoop(streamID uuid.UUID) {
 			err = app.startHls(streamID, viewer.c, viewer.status)
 			if err != nil {
 				log.Printf("Hls writer for '%s' stopped: %s", streamID, err.Error())
+			} else {
+				log.Printf("Hls writer for '%s' stopped", streamID)
 			}
+		} else {
+			log.Printf("Status is false or codec data is nil for '%s'", streamID)
+		}
+
+		app.clientDelete(streamID, cuuid)
+
+		if !app.exists(streamID) {
+			log.Printf("Close hls worker loop for '%s'", streamID)
+			return
 		}
 
 		time.Sleep(1 * time.Second)
-		//	} else {
-		//		if len(quitCh) < cap(quitCh) {
-		//			quitCh <- false
-		//		}
-		//	}
-		//}
 	}
 }
 
@@ -179,9 +179,14 @@ func (app *Application) startHls(streamID uuid.UUID, ch chan av.Packet, statusCh
 		if err != nil {
 			log.Printf("Can't create playlist %s: %s\n", playlistFileName, err.Error())
 		}
-		playlistFile.Write(playlist.Encode().Bytes())
-		playlistFile.Close()
-		// log.Printf("m3u8 file has been re-created: %s\n", playlistFileName)
+		_, err = playlistFile.Write(playlist.Encode().Bytes())
+		if err != nil {
+			log.Printf("Can't write playlist %s: %s\n", playlistFileName, err.Error())
+		}
+		err = playlistFile.Close()
+		if err != nil {
+			log.Printf("Can't close playlist file %s: %s\n", playlistFileName, err.Error())
+		}
 
 		// Cleanup segments
 		if err := app.removeOutdatedSegments(streamID, playlist); err != nil {
