@@ -3,7 +3,7 @@ package videoserver
 import (
 	"errors"
 	"fmt"
-	"github.com/deepch/vdk/av"
+	"github.com/webver/vdk/av"
 	"sync"
 
 	"strconv"
@@ -246,70 +246,69 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 	log.Printf("Время получения пакетов %v", time.Since(measureStart))
 
 	log.Printf("Время получения изображения суммарно %v", time.Since(start))
-	ctx.JSON(200, pktArray)
+	//ctx.JSON(200, pktArray)
 
-	//decoder, err := ffmpeg.NewVideoDecoder(codecData[0])
+	decoder, err := ffmpeg.NewVideoDecoder(codecData[0])
+	if err != nil {
+		log.Print(err)
+		ctx.JSON(404, err.Error())
+		return
+	}
+
+	measureStart = time.Now()
+
+	var img *ffmpeg.VideoFrame
+	//for i := range pktArray {
+	//err = decoder.DecoderAppendPkt(pktArray[i].Data)
 	//if err != nil {
 	//	log.Print(err)
 	//	ctx.JSON(404, err.Error())
 	//	return
 	//}
 	//
-	//measureStart = time.Now()
-	//
-	//var img *ffmpeg.VideoFrame
-	////for i := range pktArray {
-	//	//err = decoder.DecoderAppendPkt(pktArray[i].Data)
-	//	//if err != nil {
-	//	//	log.Print(err)
-	//	//	ctx.JSON(404, err.Error())
-	//	//	return
-	//	//}
-	//	//
-	//	//img, err = decoder.DecoderReceiveFrame()
-	//	img, err = decoder.DecodeNewApi(pktArray)
-	//	if err != nil {
-	//		err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
-	//		log.Print(err)
-	//		ctx.JSON(404, err.Error())
-	//		return
-	//	}
-	//	//if i != len(pktArray) -1 {
-	//	//	img.Free()
-	//	//}
-	////}
-	//
-	//log.Printf("Время декодирования %v", time.Since(measureStart))
-	//measureStart = time.Now()
-	//
-	//
-	//decoder.Free()
-	//
-	//log.Printf("Время получения изображения %v", time.Since(measureStart))
-	//measureStart = time.Now()
-	//
-	//if img == nil {
-	//	err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
-	//	log.Print(err)
-	//	ctx.JSON(404, err.Error())
-	//	return
+	//img, err = decoder.DecoderReceiveFrame()
+	img, err = decoder.DecodeNewApi(pktArray)
+	if err != nil {
+		err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
+		log.Print(err)
+		ctx.JSON(404, err.Error())
+		return
+	}
+	//if i != len(pktArray) -1 {
+	//	img.Free()
 	//}
-	//
-	//buf := new(bytes.Buffer)
-	//err = jpeg.Encode(buf, &img.Image, &jpeg.EncoderOptions{Quality: 90})
-	//if err != nil {
-	//	err = errors.New(fmt.Sprintf("Ошибка преобразования в jpeg для времени %v", timeT))
-	//	log.Print(err)
-	//	ctx.JSON(404, err.Error())
-	//	return
 	//}
-	//
-	//img.Free()
-	//
-	//log.Printf("Время преобразования в JPEG %v", time.Since(measureStart))
-	//log.Printf("Время получения изображения суммарно %v", time.Since(start))
-	//
-	//ctx.Data(200, "image/jpeg", buf.Bytes())
+
+	log.Printf("Время декодирования %v", time.Since(measureStart))
+	measureStart = time.Now()
+
+	decoder.Free()
+
+	log.Printf("Время получения изображения %v", time.Since(measureStart))
+	measureStart = time.Now()
+
+	if img == nil {
+		err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
+		log.Print(err)
+		ctx.JSON(404, err.Error())
+		return
+	}
+
+	buf := new(bytes.Buffer)
+	err = jpeg.Encode(buf, &img.Image, &jpeg.EncoderOptions{Quality: 90})
+	if err != nil {
+		err = errors.New(fmt.Sprintf("Ошибка преобразования в jpeg для времени %v", timeT))
+		log.Print(err)
+		ctx.JSON(404, err.Error())
+		return
+	}
+
+	img.Free()
+
+	log.Printf("Время преобразования в JPEG %v", time.Since(measureStart))
+	log.Printf("Время получения изображения суммарно %v", time.Since(start))
+
+	ctx.Data(200, "image/jpeg", buf.Bytes())
 
 	return
 }

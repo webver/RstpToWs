@@ -1,11 +1,9 @@
-github.com/LdDl/vdk v0.0.1 h1:jsVjKAiqAvr/4+TT345KsOoOIuzZv/4euZL0wnd+RkE=
-github.com/LdDl/vdk v0.0.1/go.mod h1:ABPccWvpLlldinzuhI/iNeJoXq7dLw4M5KO4IsKE9Gw=
+github.com/webver/vdk v0.0.2 h1:VRNINGQEs1B6O/RKCWctwRPZC5PWINeNJFBBAPDKSZE=
+github.com/webver/vdk v0.0.2/go.mod h1:3dj18h0ImfFDCwx0u9ElLGOxrJji5Yj5xU4H29tMyHw=
 github.com/cheekybits/genny v1.0.0/go.mod h1:+tQajlRqAUrPI7DOSpB0XAqZYtQakVtB7wXkRAgjxjQ=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/deepch/vdk v0.0.0-20210321174211-d6080d8287d7 h1:Afv4UVVUFjDGBDZZWj/TxWXQT6chj7aRxuviKctjVbg=
-github.com/deepch/vdk v0.0.0-20210321174211-d6080d8287d7/go.mod h1:EZi580zgIZQOVwMcApOE/rTxuWCHvP/9yAFkUro14LI=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4IgpuI1SZQ=
 github.com/gin-contrib/cors v1.3.1 h1:doAsuITavI4IOcd0Y19U4B+O0dNWihRyX//nn4sEmgA=

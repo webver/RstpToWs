@@ -38,6 +38,13 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="\go.mod">
+          <value>
+            <Attribute>
+              <option name="separator" value="&#9;" />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="\hls.go">
           <value>
             <Attribute>

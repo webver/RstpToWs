@@ -1,8 +1,8 @@
 package videoserver
 
 import (
-	"github.com/deepch/vdk/format/rtspv2"
 	"github.com/google/uuid"
+	"github.com/webver/vdk/format/rtspv2"
 	"log"
 	"time"
 )
