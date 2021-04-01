@@ -7,8 +7,6 @@ import (
 	"github.com/pixiv/go-libjpeg/jpeg"
 	"github.com/webver/vdk/av"
 	"github.com/webver/vdk/cgo/ffmpeg"
-	"image"
-	"image/color"
 	"sync"
 
 	"strconv"
