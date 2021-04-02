@@ -180,6 +180,10 @@ func (mp4Writer *Mp4Writer) startMp4Writer(codecData []av.CodecData, ch chan av.
 					}
 				} else {
 					log.Println("Current packet time < previous ", mp4Writer.lastPacketTime, pck.Time, pck.CompositionTime)
+					if pck.Time-mp4Writer.lastPacketTime > time.Second*10 {
+						mp4Writer.isConnected = false
+						break segmentLoop
+					}
 				}
 			}
 		}

@@ -116,9 +116,6 @@ func (app *Application) castMSE(streamID uuid.UUID, pck av.Packet) error {
 	if !ok {
 		return ErrStreamNotFound
 	}
-	if len(curStream.Clients) == 0 {
-		log.Print("No clients")
-	}
 	for _, v := range curStream.Clients {
 		//if len(v.c) < cap(v.c) {
 		//	v.c <- pck
@@ -127,7 +124,7 @@ func (app *Application) castMSE(streamID uuid.UUID, pck av.Packet) error {
 		case v.c <- pck:
 			// message sent
 		default:
-			log.Print("Drop pkt - no client listner")
+			log.Print("Drop pkt")
 			// message dropped
 		}
 	}
