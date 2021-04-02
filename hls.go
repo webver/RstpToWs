@@ -153,6 +153,10 @@ func (app *Application) startHls(streamID uuid.UUID, ch chan av.Packet, statusCh
 					segmentCount++
 				} else {
 					// fmt.Println("Current packet time < previous ")
+					if lastPacketTime-pck.Time > time.Second*10 {
+						isConnected = false
+						break segmentLoop
+					}
 				}
 			}
 		}
