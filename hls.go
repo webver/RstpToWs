@@ -14,14 +14,6 @@ import (
 	"github.com/webver/vdk/format/ts"
 )
 
-func (app *Application) StartHlsApp() {
-	for _, streamID := range app.Streams.getKeys() {
-		if app.existsWithType(streamID, "hls") {
-			go app.startHlsWorkerLoop(streamID)
-		}
-	}
-}
-
 func (app *Application) startHlsWorkerLoop(streamID uuid.UUID) {
 
 	for {
@@ -42,6 +34,7 @@ func (app *Application) startHlsWorkerLoop(streamID uuid.UUID) {
 		}
 
 		if status && codecData != nil {
+			log.Printf("start HLS: %s\n", streamID)
 			err = app.startHls(streamID, viewer.c, viewer.status)
 			if err != nil {
 				log.Printf("Hls writer for '%s' stopped: %s", streamID, err.Error())
@@ -72,7 +65,6 @@ func (app *Application) startHls(streamID uuid.UUID, ch chan av.Packet, statusCh
 
 	// Create playlist for HLS streams
 	playlistFileName := filepath.Join(app.HlsDirectory, fmt.Sprintf("%s.m3u8", streamID))
-	log.Printf("Need to start HLS: %s\n", playlistFileName)
 	playlist, err := m3u8.NewMediaPlaylist(app.HlsWindowSize, app.HlsCapacity)
 	if err != nil {
 		return errors.Wrap(err, "Can't create new mediaplayer list")

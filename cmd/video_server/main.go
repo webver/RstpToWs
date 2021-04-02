@@ -51,8 +51,6 @@ func main() {
 	go app.StartVideoServer()
 	// Run streams
 	go app.StartStreams()
-	// Run Hls app
-	go app.StartHlsApp()
 	// Start API server
 	go app.StartAPIServer()
 	// Start stream recorder

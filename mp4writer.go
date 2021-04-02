@@ -149,7 +149,11 @@ func (mp4Writer *Mp4Writer) startMp4Writer(codecData []av.CodecData, ch chan av.
 					mp4Writer.isConnected = false
 					break segmentLoop
 				}
-			case pck := <-ch:
+			case pck, ok := <-ch:
+				if !ok {
+					mp4Writer.isConnected = false
+					break segmentLoop
+				}
 				if pck.Idx == videoStreamIdx && pck.IsKeyFrame {
 					if isStarted == false {
 						now := time.Now().UTC()
@@ -175,7 +179,7 @@ func (mp4Writer *Mp4Writer) startMp4Writer(codecData []av.CodecData, ch chan av.
 						mp4Writer.lastPacketTime = pck.Time + pck.CompositionTime
 					}
 				} else {
-					// fmt.Println("Current packet time < previous ")
+					log.Println("Current packet time < previous ", mp4Writer.lastPacketTime, pck.Time, pck.CompositionTime)
 				}
 			}
 		}

@@ -48,6 +48,8 @@ func (app *Application) StartRecordApp(cfg *ConfigurationArgs) {
 				return
 			}
 
+			log.Printf("Add mp4 writer for %s: %s\n", validUUID)
+
 			app.RecordApp.m.Lock()
 			app.RecordApp.store[validUUID] = streamSaver
 			app.RecordApp.m.Unlock()
@@ -69,49 +71,46 @@ func (app *Application) startHddRecorderWorkingLoop(streamID uuid.UUID) {
 	m4Writer := app.RecordApp.store[streamID].mp4writer
 	app.RecordApp.m.Unlock()
 
-	if app.existsWithType(streamID, "mse") {
-
-		//quitCh := make(chan bool, 1)
-
-		for {
-			cuuid, viewer, err := app.clientAdd(streamID)
-			if err != nil {
-				log.Printf("Can't add client for '%s' due the error: %s\n", streamID, err.Error())
-				return
-			}
-
-			status, err := app.getStatus(streamID)
-			if err != nil {
-				log.Printf("Can't get status data for '%s' due the error: %s", streamID, err.Error())
-			}
-
-			codecData, err := app.codecGet(streamID)
-			if err != nil {
-				log.Printf("Can't get codec data for '%s' due the error: %s", streamID, err.Error())
-			}
-
-			if status && codecData != nil {
-				//Перезапуск при реконнектах камеры
-				err = m4Writer.startMp4Writer(codecData, viewer.c, viewer.status)
-				if err != nil {
-					log.Printf("Mp4 writer for '%s' stopped: %s", streamID, err.Error())
-				} else {
-					log.Printf("Mp4 writer for '%s' stopped", streamID)
-				}
-			} else {
-				log.Printf("Status is false or codec data is nil for '%s'", streamID)
-			}
-
-			app.clientDelete(streamID, cuuid)
-
-			if !app.exists(streamID) {
-				log.Printf("Close recorder loop for '%s'", streamID)
-				return
-			}
-
-			time.Sleep(1 * time.Second)
+	for {
+		cuuid, viewer, err := app.clientAdd(streamID)
+		if err != nil {
+			log.Printf("Can't add client for '%s' due the error: %s\n", streamID, err.Error())
+			return
 		}
+
+		status, err := app.getStatus(streamID)
+		if err != nil {
+			log.Printf("Can't get status data for '%s' due the error: %s", streamID, err.Error())
+		}
+
+		codecData, err := app.codecGet(streamID)
+		if err != nil {
+			log.Printf("Can't get codec data for '%s' due the error: %s", streamID, err.Error())
+		}
+
+		if status && codecData != nil {
+			//Перезапуск при реконнектах камеры
+			log.Printf("start mp4writer: %s\n", streamID)
+			err = m4Writer.startMp4Writer(codecData, viewer.c, viewer.status)
+			if err != nil {
+				log.Printf("Mp4 writer for '%s' stopped: %s", streamID, err.Error())
+			} else {
+				log.Printf("Mp4 writer for '%s' stopped", streamID)
+			}
+		} else {
+			log.Printf("Status is false or codec data is nil for '%s'", streamID)
+		}
+
+		app.clientDelete(streamID, cuuid)
+
+		if !app.exists(streamID) {
+			log.Printf("Close recorder loop for '%s'", streamID)
+			return
+		}
+
+		time.Sleep(1 * time.Second)
 	}
+
 }
 
 func (app *Application) startRamSaver(streamID uuid.UUID) {
@@ -248,7 +247,7 @@ func screenShotWrapper(ctx *gin.Context, app *Application) {
 
 	log.Printf("Время получения пакетов %v", time.Since(measureStart))
 
-	log.Printf("Время получения изображения суммарно %v", time.Since(start))
+	//log.Printf("Время получения изображения суммарно %v", time.Since(start))
 	//ctx.JSON(200, pktArray)
 
 	decoder, err := ffmpeg.NewVideoDecoder(codecData[0])
