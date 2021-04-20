@@ -194,6 +194,7 @@ func (ramStore *RamStore) Clear() error {
 	}
 
 	ramStore.keysQueue.Init()
+	ramStore.storeSize = 0
 
 	return err
 }
