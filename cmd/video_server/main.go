@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	videoserver "github.com/LdDl/video-server"
+	videoserver "github.com/webver/video-server"
 )
 
 var (

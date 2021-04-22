@@ -1,4 +1,4 @@
-module github.com/LdDl/video-server
+module github.com/webver/video-server
 
 go 1.14
 
