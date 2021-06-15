@@ -1,42 +1,113 @@
 {
-    "server": {
-        "http_addr": "localhost",
-        "video_http_port": 8090,
-        "api_http_port": 8091
+  "server": {
+    "http_addr": "0.0.0.0",
+    "video_http_port": 8090,
+    "api_http_port": 8091
+  },
+  "hls_ms_per_segment": 10000,
+  "hls_directory": "./hls",
+  "hls_window_size": 5,
+  "hls_window_capacity": 10,
+  "streams": [
+    {
+      "guid": "7e0ad4aa-fcbe-49d6-a34b-807d585d2678",
+      "url": "rtsp://admin:admin@10.151.3.77:554/main",
+      "stream_types": [
+        "mse"
+      ],
+      "record_stream": true,
+      "file_size": 268435456,
+      "file_count": 10
     },
-    "hls_ms_per_segment": 10000,
-    "hls_directory": "./hls",
-    "hls_window_size": 5,
-    "hls_window_capacity" : 10,
-    "streams": [
-        {
-            "guid": "37e8df8f-6062-489b-8fad-3b76952965d7",
-            "url": "rtsp://admin:admin@10.151.3.77:554/main",
-            "stream_types": [
-                "mse", "hls"
-            ],
-            "record_stream": true,
-            "file_size": 33554432,
-            "files_count": 100
-        },
-        {
-            "guid": "6c31f7bd-c842-4645-89b5-427b1a5b57ff",
-            "url": "rtsp://admin:admin@10.151.3.71:554/main",
-            "stream_types": [
-                "mse", "hls"
-            ],
-            "record_stream": true,
-            "file_size": 33554432,
-            "files_count": 100
-        }
+    {
+      "guid": "3d5b55dc-7920-4e4d-8d43-b86b429c1903",
+      "url": "rtsp://admin:admin@10.151.3.71:554/main",
+      "stream_types": [
+        "mse"
+      ],
+      "record_stream": true,
+      "file_size": 134217728,
+      "file_count": 10
+    },
+    {
+      "guid": "a646b8c5-e483-4073-9a8b-48b4161a20e7",
+      "url": "rtsp://admin:admin@89.107.197.22:55402/h264",
+      "stream_types": [
+        "mse"
+      ],
+      "record_stream": true,
+      "file_size": 134217728,
+      "file_count": 10
+    },
+    {
+      "guid": "8abf879f-3a46-4cde-84f7-38aa8b1db447",
+      "description": "пересечение Пирогова, Оборонной и Советской",
+      "url": "rtsp://admin:admin@10.151.4.172:554/h264",
+      "stream_types": [
+        "mse"
+      ],
+      "record_stream": true,
+      "file_size": 134217728,
+      "file_count": 10
+    },
+    {
+      "guid": "05d9a4aa-4a4b-4980-ac49-820c59adfc0d",
+      "description": "пересечение Октябрьской улицы – улицы Максима Горького",
+      "url": "rtsp://admin:admin@10.151.3.180:554/main",
+      "stream_types": [
+        "mse"
+      ],
+      "record_stream": true,
+      "file_size": 134217728,
+      "file_count": 10
+    },
+    {
+      "guid": "73794391-5def-4bda-b7cb-461a94fd816d",
+      "description": "Советская ул. пересечение с просп.Ленина (справа)",
+      "url": "rtsp://admin:admin@10.151.4.113:554/h264",
+      "stream_types": [
+        "mse"
+      ],
+      "record_stream": true,
+      "file_size": 134217728,
+      "file_count": 10
+    },
+    {
+      "guid": "9f753b35-dcc6-4185-b2ad-30de3bc6ccbd",
+      "description": "пересечение пр-т Ленина - Льва Толстого",
+      "url": "rtsp://admin:admin@10.151.0.167:554/main",
+      "stream_types": [
+        "mse"
+      ],
+      "record_stream": true,
+      "file_size": 134217728,
+      "file_count": 10
+    }
+  ],
+  "cors_config": {
+    "use_cors": true,
+    "allow_origins": [
+      "*"
     ],
-    "cors_config": {
-        "use_cors": true,
-        "allow_origins": ["*"],
-        "allow_methods": ["GET", "PUT", "POST", "DELETE"],
-        "allow_headers": ["Origin", "Authorization", "Content-Type", "Content-Length", "Accept", "Accept-Encoding", "X-HttpRequest"],
-        "expose_headers": ["Content-Length"],
-        "allow_credentials":true
-    },
-    "mp4_directory": "mp4"
+    "allow_methods": [
+      "GET",
+      "PUT",
+      "POST",
+      "DELETE"
+    ],
+    "allow_headers": [
+      "Origin",
+      "Authorization",
+      "Content-Type",
+      "Content-Length",
+      "Accept",
+      "Accept-Encoding",
+      "X-HttpRequest"
+    ],
+    "expose_headers": [
+      "Content-Length"
+    ],
+    "allow_credentials": true
+  },
+  "mp4_directory": "mp4"
 }
