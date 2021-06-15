@@ -106,3 +106,19 @@ func (store *SegmentStore) FindSegment(tm time.Time) (string, time.Time, error) 
 		return "", segmentStartTime, errors.New(fmt.Sprintf("Не найден пакет с временем %v (последний %v  первый %v) ", tm, store.lastTime, store.fistTime))
 	}
 }
+
+type SegmentInfo struct {
+	Filename  string    `json:"filename"`
+	StartTime time.Time `json:"start_time"`
+	EndTime   time.Time `json:"end_time"`
+}
+
+func (store *SegmentStore) GetSegmentList() []SegmentInfo {
+	segmentInfoArray := make([]SegmentInfo, 0)
+	store.m.Lock()
+	defer store.m.Unlock()
+	for k, v := range store.segmentDataMap {
+		segmentInfoArray = append(segmentInfoArray, SegmentInfo{Filename: k, StartTime: v.startTime, EndTime: v.endTime})
+	}
+	return segmentInfoArray
+}

@@ -312,3 +312,203 @@ func (mp4Writer *Mp4Writer) initSegmentStore() error {
 	}
 	return nil
 }
+
+//
+//func archiveWrapper(ctx *gin.Context, app *Application) {
+//
+//}
+//
+//
+//func archiveWrapper(ctx *gin.Context, app *Application) {
+//	start := time.Now()
+//
+//	cuuid := ctx.Param("suuid")
+//	streamID, err := uuid.Parse(uuidRegExp.FindString(cuuid))
+//	if err != nil {
+//		log.Print(err)
+//		ctx.JSON(404, err.Error())
+//		return
+//	}
+//
+//	timeT := time.Now().Add(time.Second * time.Duration(-5))
+//
+//	timestampStr := ctx.Query("timestamp")
+//	timestamp, err := strconv.ParseInt(timestampStr, 10, 64)
+//	if err != nil {
+//		log.Print(err)
+//		ctx.JSON(404, err.Error())
+//		return
+//	} else {
+//
+//		timeT = time.Unix(timestamp, 0)
+//		msStr := ctx.Query("ms")
+//		ms, err := strconv.ParseInt(msStr, 10, 64)
+//		if err != nil {
+//			log.Print(err)
+//			ctx.JSON(404, err.Error())
+//			return
+//		} else {
+//			timeT = time.Unix(timestamp, ms*1000000)
+//		}
+//	}
+//
+//	ctx.Header("Cache-Control", "no-cache")
+//
+//	var pktArray []av.Packet
+//	var codecData []av.CodecData
+//
+//	measureStart := time.Now()
+//
+//	app.RecordApp.m.Lock()
+//	streamSaver, ok := app.RecordApp.store[streamID]
+//	app.RecordApp.m.Unlock()
+//	if !ok {
+//		err = errors.New(fmt.Sprintf("Поток %s не найден", streamID.String()))
+//		log.Print(err)
+//		ctx.JSON(404, err.Error())
+//		return
+//	}
+//
+//	if timeT.After(streamSaver.ramStore.firstPktTime) && timeT.Before(streamSaver.ramStore.lastPktTime) {
+//		pktArray, err = streamSaver.ramStore.FindPacket(timeT)
+//		if err != nil {
+//			log.Print(err)
+//			ctx.JSON(404, err.Error())
+//			return
+//		}
+//
+//		log.Printf("Время разбора H264 %v", time.Since(measureStart))
+//		log.Printf("Пакеты найдены в памяти")
+//
+//		codecData, err = app.codecGet(streamID)
+//		if err != nil {
+//			log.Printf("Can't add client '%s' due the error: %s\n", streamID, err.Error())
+//			ctx.JSON(404, err.Error())
+//			return
+//		}
+//		if codecData == nil || len(codecData) == 0 || codecData[0].Type() != av.H264 {
+//			log.Printf("No codec information for stream %s\n", streamID)
+//			ctx.JSON(404, err.Error())
+//			return
+//		}
+//	} else {
+//		fileName, segmentStartTime, err := streamSaver.mp4writer.segmentStore.FindSegment(timeT)
+//		if err != nil {
+//			log.Print(err)
+//			ctx.JSON(404, err.Error())
+//			return
+//		}
+//
+//		timeInFile := timeT.Sub(segmentStartTime)
+//
+//		codecData, pktArray, err = streamSaver.mp4writer.FindInFile(fileName, timeInFile)
+//		if err != nil {
+//			log.Print(err)
+//			ctx.JSON(404, err.Error())
+//			return
+//		}
+//
+//		log.Printf("Пакеты найдены на диске")
+//	}
+//
+//	if codecData == nil || len(codecData) == 0 || codecData[0].Type() != av.H264 {
+//		log.Printf("No codec information for stream %s\n", streamID)
+//		ctx.JSON(404, err.Error())
+//		return
+//	}
+//
+//	log.Printf("Время получения пакетов %v", time.Since(measureStart))
+//
+//	log.Printf("Время получения изображения суммарно %v", time.Since(start))
+//	ctx.JSON(200, pktArray)
+//
+//	//decoder, err := ffmpeg.NewVideoDecoder(codecData[0])
+//	//if err != nil {
+//	//	log.Print(err)
+//	//	ctx.JSON(404, err.Error())
+//	//	return
+//	//}
+//	//
+//	//measureStart = time.Now()
+//	//
+//	//var img *ffmpeg.VideoFrame
+//	////for i := range pktArray {
+//	////err = decoder.DecoderAppendPkt(pktArray[i].Data)
+//	////if err != nil {
+//	////	log.Print(err)
+//	////	ctx.JSON(404, err.Error())
+//	////	return
+//	////}
+//	////
+//	////img, err = decoder.DecoderReceiveFrame()
+//	//img, err = decoder.DecodeNewApi(pktArray)
+//	//if err != nil {
+//	//	err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
+//	//	log.Print(err)
+//	//	ctx.JSON(404, err.Error())
+//	//	return
+//	//}
+//	////if i != len(pktArray) -1 {
+//	////	img.Free()
+//	////}
+//	////}
+//	//
+//	//log.Printf("Время декодирования %v", time.Since(measureStart))
+//	//measureStart = time.Now()
+//	//
+//	//decoder.Free()
+//	//
+//	//log.Printf("Время получения изображения %v", time.Since(measureStart))
+//	//measureStart = time.Now()
+//	//
+//	//if img == nil {
+//	//	err = errors.New(fmt.Sprintf("Не возможно сформировать картинку для времени %v", timeT))
+//	//	log.Print(err)
+//	//	ctx.JSON(404, err.Error())
+//	//	return
+//	//}
+//	//
+//	//buf := new(bytes.Buffer)
+//	//err = jpeg.Encode(buf, &img.Image, &jpeg.EncoderOptions{Quality: 90})
+//	//if err != nil {
+//	//	err = errors.New(fmt.Sprintf("Ошибка преобразования в jpeg для времени %v", timeT))
+//	//	log.Print(err)
+//	//	ctx.JSON(404, err.Error())
+//	//	return
+//	//}
+//	//
+//	//img.Free()
+//	//
+//	//log.Printf("Время преобразования в JPEG %v", time.Since(measureStart))
+//	//log.Printf("Время получения изображения суммарно %v", time.Since(start))
+//	//
+//	//ctx.Data(200, "image/jpeg", buf.Bytes())
+//
+//	return
+//}
+
+type CameraArchive struct {
+	Id          uuid.UUID     `json:"id"`
+	URL         string        `json:"url"`
+	Description string        `json:"description"`
+	Files       []SegmentInfo `json:"files"`
+}
+
+func (app *Application) cameraArchiveWrapper() []CameraArchive {
+	defer app.Streams.Unlock()
+	app.Streams.Lock()
+	res := make([]CameraArchive, 0)
+
+	for k, v := range app.Streams.Streams {
+
+		cameraArchive := CameraArchive{
+			Id:          k,
+			URL:         v.URL,
+			Description: v.Description,
+			Files:       app.RecordApp.store[k].mp4writer.segmentStore.GetSegmentList(),
+		}
+
+		res = append(res, cameraArchive)
+	}
+	return res
+}

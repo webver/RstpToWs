@@ -34,6 +34,10 @@ func (app *Application) StartVideoServer() {
 	}
 	router.GET("/ws/:suuid", WebSocketWrapper(app, &wsUpgrader))
 	router.GET("/hls/:file", HLSWrapper(app))
+	//router.GET("/mp4/:file", Mp4wrapper(app))
+	router.StaticFS("/mp4", http.Dir(app.Mp4Directory))
+	router.GET("/archive", CameraArchiveWrapper(app))
+	router.GET("/archive/:suuid/:file", Mp4FileWrapper(app))
 	router.GET("/screenshot/:suuid", ScreenShotWrapper(app))
 	s := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", app.Server.HTTPAddr, app.Server.VideoHTTPPort),
@@ -84,6 +88,13 @@ func ListWrapper(app *Application) func(ctx *gin.Context) {
 	}
 }
 
+func CameraArchiveWrapper(app *Application) func(ctx *gin.Context) {
+	return func(ctx *gin.Context) {
+		all := app.cameraArchiveWrapper()
+		ctx.JSON(200, all)
+	}
+}
+
 // StatusWrapper Returns statuses for list of streams
 func StatusWrapper(app *Application) func(ctx *gin.Context) {
 	return func(ctx *gin.Context) {
@@ -120,6 +131,24 @@ func HLSWrapper(app *Application) func(ctx *gin.Context) {
 		}
 		ctx.Header("Cache-Control", "no-cache")
 		ctx.FileFromFS(file, http.Dir(app.HlsDirectory))
+	}
+}
+
+// Mp4FileWrapper Returns Mp4FileHandler handler
+func Mp4FileWrapper(app *Application) func(ctx *gin.Context) {
+	return func(ctx *gin.Context) {
+		cuuid := ctx.Param("suuid")
+		streamID, err := uuid.Parse(uuidRegExp.FindString(cuuid))
+		if err != nil {
+			log.Print(err)
+			ctx.JSON(404, err.Error())
+			return
+		}
+
+		file := ctx.Param("file")
+
+		ctx.Header("Cache-Control", "no-cache")
+		ctx.FileFromFS(fmt.Sprintf("%s/%s", streamID.String(), file), http.Dir(app.Mp4Directory))
 	}
 }
 

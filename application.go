@@ -19,6 +19,7 @@ type Application struct {
 	HlsWindowSize   uint         `json:"hls_window_size"`
 	HlsCapacity     uint         `json:"hls_window_capacity"`
 	CorsConfig      *cors.Config `json:"-"`
+	Mp4Directory    string       `json:"mp4_directory"`
 	RecordApp       RecordApp    `json:"-"`
 }
 
@@ -48,6 +49,7 @@ func (sm *StreamsMap) getKeys() []uuid.UUID {
 // StreamConfiguration Configuration parameters for stream
 type StreamConfiguration struct {
 	URL                  string   `json:"url"`
+	Description          string   `json:"description"`
 	Status               bool     `json:"status"`
 	SupportedStreamTypes []string `json:"supported_stream_types"`
 	OnDemand             bool     `json:"on_demand"`
@@ -75,6 +77,7 @@ func NewApplication(cfg *ConfigurationArgs) (*Application, error) {
 		HlsDirectory:    cfg.HlsDirectory,
 		HlsWindowSize:   cfg.HlsWindowSize,
 		HlsCapacity:     cfg.HlsCapacity,
+		Mp4Directory:    cfg.Mp4Directory,
 	}
 	if cfg.CorsConfig.UseCORS {
 		tmp.setCors(&cfg.CorsConfig)
@@ -87,6 +90,7 @@ func NewApplication(cfg *ConfigurationArgs) (*Application, error) {
 		}
 		tmp.Streams.Streams[validUUID] = &StreamConfiguration{
 			URL:                  cfg.Streams[i].URL,
+			Description:          cfg.Streams[i].Description,
 			Clients:              make(map[uuid.UUID]Viewer),
 			SupportedStreamTypes: cfg.Streams[i].StreamTypes,
 			closeGracefully:      make(chan bool, 1),

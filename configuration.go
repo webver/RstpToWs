@@ -42,6 +42,7 @@ type CorsConfiguration struct {
 type StreamArg struct {
 	GUID         string   `json:"guid"`
 	URL          string   `json:"url"`
+	Description  string   `json:"description"`
 	StreamTypes  []string `json:"stream_types"`
 	RecordStream bool     `json:"record_stream"`
 	FileSize     int      `json:"file_size"`
