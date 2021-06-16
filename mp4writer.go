@@ -501,14 +501,21 @@ func (app *Application) cameraArchiveWrapper() []CameraArchive {
 
 	for k, v := range app.Streams.Streams {
 
-		cameraArchive := CameraArchive{
-			Id:          k,
-			URL:         v.URL,
-			Description: v.Description,
-			Files:       app.RecordApp.store[k].mp4writer.segmentStore.GetSegmentList(),
-		}
+		if v.Description != "" {
+			cameraArchive := CameraArchive{
+				Id:          k,
+				URL:         v.URL,
+				Description: v.Description,
+				Files:       app.RecordApp.store[k].mp4writer.segmentStore.GetSegmentList(),
+			}
 
-		res = append(res, cameraArchive)
+			res = append(res, cameraArchive)
+		}
 	}
+
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].Description < res[j].Description
+	})
+
 	return res
 }

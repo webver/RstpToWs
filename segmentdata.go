@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"log"
+	"sort"
 	"sync"
 	"time"
 )
@@ -120,5 +121,10 @@ func (store *SegmentStore) GetSegmentList() []SegmentInfo {
 	for k, v := range store.segmentDataMap {
 		segmentInfoArray = append(segmentInfoArray, SegmentInfo{Filename: k, StartTime: v.startTime, EndTime: v.endTime})
 	}
+
+	sort.Slice(segmentInfoArray, func(i, j int) bool {
+		return segmentInfoArray[i].StartTime.After(segmentInfoArray[j].StartTime)
+	})
+
 	return segmentInfoArray
 }

@@ -35,10 +35,10 @@ func (app *Application) StartVideoServer() {
 	router.GET("/ws/:suuid", WebSocketWrapper(app, &wsUpgrader))
 	router.GET("/hls/:file", HLSWrapper(app))
 	//router.GET("/mp4/:file", Mp4wrapper(app))
-	router.StaticFS("/mp4", http.Dir(app.Mp4Directory))
-	router.GET("/archive", CameraArchiveWrapper(app))
-	router.GET("/archive/:suuid/:file", Mp4FileWrapper(app))
-	router.GET("/screenshot/:suuid", ScreenShotWrapper(app))
+	router.StaticFS("/api/mp4", http.Dir(app.Mp4Directory))
+	router.GET("/api/archive", CameraArchiveWrapper(app))
+	router.GET("/api/archive/:suuid/:file", Mp4FileWrapper(app))
+	router.GET("/api/screenshot/:suuid", ScreenShotWrapper(app))
 	s := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", app.Server.HTTPAddr, app.Server.VideoHTTPPort),
 		Handler:      router,
@@ -62,10 +62,10 @@ func (app *Application) StartAPIServer() {
 	if app.CorsConfig != nil {
 		router.Use(cors.New(*app.CorsConfig))
 	}
-	router.GET("/list", ListWrapper(app))
-	router.GET("/status", StatusWrapper(app))
-	router.POST("/enable_camera", EnableCamera(app))
-	router.POST("/disable_camera", DisableCamera(app))
+	router.GET("/api/list", ListWrapper(app))
+	router.GET("/api/status", StatusWrapper(app))
+	router.POST("/api/enable_camera", EnableCamera(app))
+	router.POST("/api/disable_camera", DisableCamera(app))
 
 	s := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", app.Server.HTTPAddr, app.Server.APIHTTPPort),
